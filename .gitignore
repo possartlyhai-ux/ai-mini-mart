@@ -16,8 +16,3 @@ Thumbs.db
 
 # Firebase deploy cache (local artifact, not source)
 .firebase/
-
-# Backend lives/deploys separately — keep it out of this public storefront repo
-# (it contains its own .env, dev.db, uploads). Remove this line if you decide
-# to track the backend here instead.
-backend/
