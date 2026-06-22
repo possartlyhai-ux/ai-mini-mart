@@ -1,0 +1,9 @@
+{
+  "name": "my-mart",
+  "version": "1.0.0",
+  "description": "Ai Mini-Mart — single-page retail storefront with cart, checkout, and client-side PDF order sheets.",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "license": "MIT"
+}

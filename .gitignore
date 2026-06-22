@@ -1,0 +1,15 @@
+# Dependencies (project is intentionally dependency-free, but just in case)
+node_modules/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+
+# Local Claude Code settings (personal, machine-specific)
+.claude/settings.local.json
+.claude/launch.json

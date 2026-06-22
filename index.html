@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ai Mini-Mart — Everyday goods, sorted.</title>
+  <meta name="description" content="Browse products, build a cart, and print a staff order sheet — Ai Mini-Mart." />
+  <link rel="icon" type="image/png" href="assets/logo.png" />
+
+  <!-- Fonts: Bricolage Grotesque (display), Plus Jakarta Sans (body),
+       Space Mono (prices/receipt). Noto Khmer/Thai/SC are pulled in the
+       CSS font stack for the language switcher. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&family=Noto+Sans+Khmer:wght@400;600;700&family=Noto+Sans+Thai:wght@400;600;700&family=Noto+Sans+SC:wght@400;600;700&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="styles.css" />
+
+  <!-- jsPDF + AutoTable for the client-side PDF order sheet (PDF section). -->
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+</head>
+<body>
+  <!-- ===================== APP BAR ===================== -->
+  <header class="appbar">
+    <div class="appbar__inner">
+      <a class="brand" href="#" aria-label="Ai Mini-Mart home">
+        <img class="brand__logo" src="assets/logo.png" alt="Ai Mini-Mart"
+             onerror="this.onerror=null;this.src='assets/logo.svg'" />
+      </a>
+
+      <div class="search">
+        <svg class="search__icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+          <circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/>
+          <line x1="16.5" y1="16.5" x2="21" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+        <input id="search" type="search" autocomplete="off"
+               data-i18n-attr="placeholder:search_placeholder"
+               placeholder="Search products or tags…"
+               aria-label="Search products" />
+      </div>
+
+      <nav class="appbar__actions" aria-label="Store settings">
+        <!-- Language -->
+        <div class="menu" data-menu="lang">
+          <button class="iconbtn" aria-haspopup="true" aria-expanded="false"
+                  data-menu-toggle title="Language">
+            <span class="iconbtn__emoji" id="lang-flag">🇬🇧</span>
+            <span class="iconbtn__label" id="lang-code">EN</span>
+          </button>
+          <div class="menu__panel" role="menu" id="lang-menu"></div>
+        </div>
+
+        <!-- Currency -->
+        <div class="menu" data-menu="currency">
+          <button class="iconbtn" aria-haspopup="true" aria-expanded="false"
+                  data-menu-toggle title="Currency">
+            <span class="iconbtn__sym" id="cur-sym">฿</span>
+            <span class="iconbtn__label" id="cur-code">THB</span>
+          </button>
+          <div class="menu__panel" role="menu" id="cur-menu"></div>
+        </div>
+
+        <!-- Theme -->
+        <div class="menu" data-menu="theme">
+          <button class="iconbtn" aria-haspopup="true" aria-expanded="false"
+                  data-menu-toggle title="Theme">
+            <span class="iconbtn__emoji" id="theme-dot">☀️</span>
+          </button>
+          <div class="menu__panel" role="menu" id="theme-menu"></div>
+        </div>
+
+        <!-- Favorites view toggle -->
+        <button class="iconbtn iconbtn--fav" id="fav-toggle" aria-pressed="false"
+                title="Favorites">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <path d="M12 3.6l2.47 5.01 5.53.8-4 3.9.94 5.5L12 16.9l-4.95 2.6.94-5.5-4-3.9 5.53-.8L12 3.6Z"
+                  fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+          </svg>
+          <span class="badge" id="fav-count" hidden>0</span>
+        </button>
+
+        <!-- Cart -->
+        <button class="cartbtn" id="cart-open" aria-haspopup="dialog" title="Cart">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <path d="M3 4h2l2.2 12.2a1.5 1.5 0 0 0 1.5 1.3h8.4a1.5 1.5 0 0 0 1.5-1.2L21 8H6"
+                  fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="10" cy="20.5" r="1.4" fill="currentColor"/>
+            <circle cx="17" cy="20.5" r="1.4" fill="currentColor"/>
+          </svg>
+          <span data-i18n="cart">Cart</span>
+          <span class="badge" id="cart-count" hidden>0</span>
+        </button>
+      </nav>
+    </div>
+
+    <!-- Category chips -->
+    <div class="chips" id="chips" role="tablist" aria-label="Categories"></div>
+  </header>
+
+  <!-- ===================== MAIN GRID ===================== -->
+  <main class="wrap">
+    <div class="grid__head">
+      <h1 class="grid__title" id="view-title" data-i18n="all">All</h1>
+      <span class="grid__count"><span id="result-count">0</span> <span data-i18n="results_count">products</span></span>
+    </div>
+
+    <section id="grid" class="grid" aria-live="polite"></section>
+
+    <div id="empty" class="empty" hidden>
+      <p id="empty-msg" data-i18n="no_results">Nothing matches your search.</p>
+      <button class="btn btn--ghost" id="empty-clear" data-i18n="clear_filters">Clear filters</button>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <span>Ai Mini-Mart · demo storefront</span>
+    <span class="footer__mono">v1 · prices in THB base · client-side PDF</span>
+  </footer>
+
+  <!-- ===================== CART / CHECKOUT DRAWER ===================== -->
+  <div class="scrim" id="scrim" hidden></div>
+
+  <aside class="drawer" id="drawer" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="drawer-title">
+    <div class="receipt-edge receipt-edge--top" aria-hidden="true"></div>
+
+    <header class="drawer__head">
+      <h2 id="drawer-title" data-i18n="your_order">Your order</h2>
+      <button class="iconbtn iconbtn--close" id="drawer-close" aria-label="Close">✕</button>
+    </header>
+
+    <!-- View: cart -->
+    <div class="drawer__body" id="view-cart">
+      <ul class="lines" id="cart-lines"></ul>
+      <div class="cart-empty" id="cart-empty">
+        <div class="cart-empty__art" aria-hidden="true">🧺</div>
+        <p data-i18n="empty_cart">Your cart is empty.</p>
+        <small data-i18n="empty_cart_hint">Add a few products to get started.</small>
+      </div>
+    </div>
+
+    <!-- View: checkout form -->
+    <form class="drawer__body checkout" id="view-checkout" hidden novalidate>
+      <label class="field">
+        <span data-i18n="customer_name">Customer name</span>
+        <input name="name" type="text" required
+               data-i18n-attr="placeholder:customer_name_ph" />
+      </label>
+      <label class="field">
+        <span data-i18n="table_or_address">Table / order no. or address</span>
+        <input name="table" type="text"
+               data-i18n-attr="placeholder:table_or_address_ph" />
+      </label>
+      <label class="field">
+        <span data-i18n="note">Order note</span>
+        <textarea name="note" rows="3"
+                  data-i18n-attr="placeholder:note_ph"></textarea>
+      </label>
+      <p class="form-error" id="form-error" data-i18n="required" hidden>Please fill in name and phone.</p>
+    </form>
+
+    <!-- View: confirmation -->
+    <div class="drawer__body done" id="view-done" hidden>
+      <div class="done__art" aria-hidden="true">🧾</div>
+      <h3 data-i18n="order_done_title">Order placed</h3>
+      <p id="done-body" data-i18n="order_done_body">Your order sheet (PDF) has been downloaded and opened.</p>
+      <button class="btn btn--primary" id="done-new" data-i18n="new_order">Start a new order</button>
+    </div>
+
+    <!-- Footer / totals -->
+    <footer class="drawer__foot" id="drawer-foot">
+      <div class="totals">
+        <div class="totals__row">
+          <span><span data-i18n="subtotal">Subtotal</span> · <span id="foot-items">0</span> <span data-i18n="items">items</span></span>
+          <strong class="mono" id="foot-subtotal">฿0.00</strong>
+        </div>
+        <div class="totals__row totals__row--grand">
+          <span data-i18n="total">Total</span>
+          <strong class="mono" id="foot-total">฿0.00</strong>
+        </div>
+      </div>
+      <div class="drawer__cta" id="cta-cart">
+        <button class="btn btn--ghost" id="btn-continue" data-i18n="continue_shopping">Continue shopping</button>
+        <button class="btn btn--primary" id="btn-checkout" data-i18n="checkout">Checkout</button>
+      </div>
+      <div class="drawer__cta drawer__cta--stack" id="cta-checkout" hidden>
+        <button class="btn btn--share" id="btn-share">
+          <svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true">
+            <path d="M4 5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9l-4 3.5a.6.6 0 0 1-1-.46V17H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"
+                  fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+            <circle cx="9" cy="11" r="1.1" fill="currentColor"/>
+            <circle cx="12.5" cy="11" r="1.1" fill="currentColor"/>
+            <circle cx="16" cy="11" r="1.1" fill="currentColor"/>
+          </svg>
+          <span data-i18n="share">Checked out &amp; Sent</span>
+        </button>
+        <div class="cta-row">
+          <button class="btn btn--ghost" id="btn-back" data-i18n="back_to_cart">Back to cart</button>
+          <button class="btn btn--primary" id="btn-place" data-i18n="download_pdf">Download PDF</button>
+        </div>
+      </div>
+    </footer>
+
+    <div class="receipt-edge receipt-edge--bottom" aria-hidden="true"></div>
+  </aside>
+
+  <!-- ===================== PRODUCT DETAIL POPUP ===================== -->
+  <div class="modal-scrim" id="detail-scrim" hidden></div>
+  <div class="modal" id="detail" hidden role="dialog" aria-modal="true" aria-labelledby="pd-name">
+    <!-- Content is rendered by app.js -> openDetail() -->
+    <div class="pd" id="pd-content"></div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <!-- App scripts: data + i18n + currency first, then UI logic, then PDF. -->
+  <script src="js/data.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/currency.js"></script>
+  <script src="js/pdf.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
