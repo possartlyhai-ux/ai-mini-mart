@@ -16,6 +16,7 @@ const PERMISSIONS = {
   PRODUCTS_DELETE: 'products:delete',
   PRODUCTS_COST: 'products:cost', // may see/set cost price + profit
   STOREFRONT_TOGGLE: 'storefront:toggle', // "Show in store" on/off
+  CATEGORIES_MANAGE: 'categories:manage', // add / edit / remove storefront categories
   BILLS_CREATE: 'bills:create',
   BILLS_READ: 'bills:read', // all bills
   BILLS_READ_OWN: 'bills:read:own', // only bills they created

@@ -7,14 +7,16 @@
 if (!process.env.DATABASE_URL) process.env.DATABASE_URL = 'file:./dev.db';
 const { PrismaClient } = require('@prisma/client');
 const { hashPassword } = require('../src/lib/auth');
-const { bahtToMinor } = require('../src/lib/currency');
+const { bahtToMinor, RATES } = require('../src/lib/currency');
 const { ROLES } = require('../src/config/permissions');
+const { DEFAULT_CATEGORIES } = require('../src/config/categories');
 
 const pic = (seed) => `https://picsum.photos/seed/${seed}/640/640`;
 
-// Parallel to storefront PRODUCTS, plus a `stock` figure per item. Two are 0
-// (the storefront's out-of-stock p06/p15) and two sit at/under the low-stock
-// threshold so badges and filters are testable out of the box.
+// Parallel to storefront PRODUCTS. The `stock` figure is only used to derive the
+// boolean `inStock` (stock 0 -> out of stock); the two zero items reproduce the
+// storefront's out-of-stock products. `wasTHB` is retained as catalog data but is
+// no longer seeded into the DB (compare-at price was removed from the staff UI).
 const SOURCE = [
   { name: 'Aurora Wireless Earbuds', tags: ['electronics', 'accessories'], priceTHB: 1290, wasTHB: 1790, unit: '1 pair', variantLabel: 'Color', stock: 40,
     variants: [{ label: 'Cloud White', swatch: '#EDEDED', img: pic('mymart-earbuds-white') }, { label: 'Onyx Black', swatch: '#1C1C1C', img: pic('mymart-earbuds-black') }] },
@@ -70,29 +72,48 @@ async function seed(client) {
     create: { name: 'Front Desk Staff', username: 'staff', passwordHash: await hashPassword('Staff@123'), role: ROLES.STAFF, active: true },
   });
 
-  // ---- products ----
+  // ---- categories (editable; DB is source of truth after this) ----
+  for (let i = 0; i < DEFAULT_CATEGORIES.length; i++) {
+    const c = DEFAULT_CATEGORIES[i];
+    const data = { slug: c.slug, label: c.label, icon: c.icon, sortOrder: i };
+    await prisma.category.upsert({ where: { slug: c.slug }, update: data, create: data });
+  }
+
+  // ---- products + variants ----
+  // Each product is a grouping; its sellable SKUs are its variants. Variants are
+  // upserted by their (unique, deterministic) barcode so the seed is re-runnable
+  // without deleting rows that bills may reference.
   for (let i = 0; i < SOURCE.length; i++) {
     const s = SOURCE[i];
     const sku = `MM-${String(i + 1).padStart(3, '0')}`;
-    const sellMinor = bahtToMinor(s.priceTHB);
-    const data = {
+    const productData = {
       name: s.name,
-      sku,
-      barcode: String(8850000000000 + i + 1), // deterministic 13-digit code
-      imageUrl: s.variants[0].img,
-      sellPriceMinor: sellMinor,
-      costPriceMinor: Math.round(sellMinor * 0.6),
-      comparePriceMinor: s.wasTHB ? bahtToMinor(s.wasTHB) : null,
-      stockQty: s.stock,
-      lowStockThreshold: 5,
+      unit: s.unit, // "Type"
+      sortOrder: i, // storefront order mirrors the catalog order
       isVisible: true,
       isActive: true,
-      unit: s.unit,
-      variantLabel: s.variantLabel,
-      variantsJson: JSON.stringify(s.variants),
       tagsJson: JSON.stringify(s.tags),
     };
-    await prisma.product.upsert({ where: { sku }, update: data, create: data });
+    const product = await prisma.product.upsert({
+      where: { sku },
+      update: productData,
+      create: { sku, ...productData },
+    });
+
+    for (let j = 0; j < s.variants.length; j++) {
+      const vr = s.variants[j];
+      const barcode = String(8850000000000 + i * 10 + j); // unique per product+variant
+      const variantData = {
+        productId: product.id,
+        name: vr.label,
+        imageUrl: vr.img,
+        sellPriceMinor: bahtToMinor(s.priceTHB),
+        sellPriceKhr: Math.round(s.priceTHB * RATES.KHR), // starting KHR price (staff can edit)
+        inStock: s.stock > 0, // two of the SOURCE items start out of stock
+        sortOrder: j,
+      };
+      await prisma.variant.upsert({ where: { barcode }, update: variantData, create: { barcode, ...variantData } });
+    }
   }
 
   // ---- default printer ----

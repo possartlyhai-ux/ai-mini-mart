@@ -26,8 +26,8 @@ code (`src/db.js`, `prisma/seed.js`, `scripts/start.js`) so it runs with zero en
 optional (see `.env.example`).
 
 Seed logins: Owner `owner`/`Owner@123`, Staff `staff`/`Staff@123` (printed on seed). The seed also
-loads 18 products that mirror the storefront catalog (with barcodes/stock; two out-of-stock, two
-low-stock for testing).
+loads the six default categories and 18 products that mirror the storefront catalog (with barcodes;
+two start out of stock for testing).
 
 ## Architecture
 
@@ -46,10 +46,15 @@ uses the symbol; `formatMoneyCode`/`formatMinorCode` use the ASCII 3-letter code
 fonts garble `฿`/`៛`). When adding a currency, edit `RATES` + `CURRENCIES` here **and** keep it in sync
 with the storefront.
 
+**Price lives on the variant, not the product.** Each `Variant` has `sellPriceMinor` (THB satang — the
+POS billing base) and a separate staff-set `sellPriceKhr` (whole riel). The POS bills in THB and
+converts for display; the KHR price is **storefront-only** (rides the feed as `priceKHR` so the shop
+can show a hand-set Riel price instead of a ×114 conversion). It does **not** affect POS/receipts/reports.
+
 ### RBAC is enforced in three layers, server-side is the real gate
 1. **Route**: `requirePermission('key')` middleware (`src/middleware/auth.js`).
-2. **Field**: `src/lib/serialize.js` strips `costPriceMinor`/`costPrice`/margin unless the caller holds
-   `products:cost` — so cost data never leaves the server for Staff, regardless of UI.
+2. **Field**: `src/lib/serialize.js` shapes DB rows into API responses — the single place to gate
+   per-field exposure (e.g. a future cost price would be stripped here unless the caller holds the perm).
 3. **UI**: `public/js/app.js` reads the resolved permission list from `GET /api/auth/me` and hides nav
    /actions. This is convenience only.
 
@@ -59,39 +64,49 @@ all keys; Staff = `products:read`, `bills:create`, `bills:read:own`, `printers:r
 
 ### The storefront feed is the integration contract
 `GET /api/storefront/products` (`src/routes/storefront.js` → `serializeStorefrontProduct`) returns
-visible+active products in the **exact** shape of `../js/data.js`: `{ id, name, tags, priceTHB,
-wasTHB?, inStock, unit, variantLabel, variants }`. `priceTHB`/`wasTHB` derive from minor units;
-`inStock` from `stockQty > 0`; `id` is the SKU. **Do not rename these keys** — the storefront will
-later `fetch()` this with no reshaping. Public (no auth).
+visible+active products **ordered by `sortOrder`** as `{ id, name, tags, unit, inStock, priceTHB,
+priceKHR, variants }`. Top-level `priceTHB`/`priceKHR`/`inStock` mirror the **first variant** (back-compat
+with the storefront card); `variants[]` carries the real per-variant data `{ label, img, priceTHB,
+priceKHR, inStock, barcode }`. `id` is the product SKU. `GET /api/storefront/categories` returns
+`{ id: slug, icon }` from the DB. **Do not rename these keys** — the storefront will later `fetch()` this
+with no reshaping. Public (no auth).
 
 ### POS checkout is one transaction (`src/routes/bills.js`)
-`POST /bills` runs in a single `prisma.$transaction`: validate stock for each line, snapshot
-name+price into `BillItem`, create the `Bill` (sequential `billNo` = `B-` + zero-padded count),
-**decrement `stockQty`**, and write a `SALE` `StockMovement` per line (qty negative, `reason` = billNo,
-`billId` set). `totalMinor` is computed separately from `subtotalMinor` — that gap is the seam where
-future discounts/tax plug in (no promo logic in v1). Stock is never edited directly elsewhere except
-`POST /products/:id/stock` (manual IN/OUT/ADJUST, also logs a movement).
+`POST /bills` takes `items:[{variantId, qty}]` and runs in a single `prisma.$transaction`: load each
+variant (+product), snapshot `nameSnapshot = "<product> — <variant>"` and `unitPriceMinor =
+variant.sellPriceMinor`, set `productId` + `variantId` on the `BillItem`, and create the `Bill`
+(sequential `billNo` = `B-` + zero-padded count). `totalMinor` is separate from `subtotalMinor` — the
+seam where future discounts/tax plug in (no promo logic in v1). **Stock is a boolean switch on the
+variant** (`Variant.inStock`), so there's nothing to decrement — it's toggled via `PATCH
+/products/variants/:vid/stock`. The POS UI blocks adding an out-of-stock variant; the server doesn't
+hard-enforce it.
 
 ### Data model notes (`prisma/schema.prisma`)
-Enum-like fields (`role`, movement `type`, `paymentMethod`, `status`, `paperWidth`) are **Strings with
-documented allowed values**, not Prisma enums — so the same schema works on SQLite now and Postgres
-later (change only `datasource.provider` + `DATABASE_URL`). `Product.tagsJson`/`variantsJson` are JSON
-**strings** (category list is small; category filtering happens in the app layer in
-`src/routes/products.js`, not in SQL). `BillItem.productId` is nullable so history survives product
-deletion. Categories are a fixed constant (`src/config/categories.js`) mirroring the storefront, not a
-table.
+**A `Product` is a grouping** (name, `unit`/"Type", `tagsJson` categories, `isVisible`, `sortOrder`);
+its sellable SKUs are **`Variant`** rows (name, unique `barcode`, `imageUrl`, `sellPriceMinor`,
+`sellPriceKhr`, `inStock`, `sortOrder`). Every product must have ≥1 variant (enforced in
+`src/routes/products.js`). Enum-like fields (`role`, `paymentMethod`, `status`, `paperWidth`) are
+**Strings with documented allowed values**, not Prisma enums — so the same schema works on SQLite now
+and Postgres later. `Product.tagsJson` is a JSON **string** (category filtering happens in the app
+layer, not SQL). `BillItem.productId` + `variantId` are nullable so history survives deletion
+(`variantId` is `onDelete: SetNull`). **Categories are an editable `Category` table**
+(`src/config/categories.js` holds only the seed defaults); products reference them by `slug` in
+`tagsJson`, and deleting a category leaves stale slugs the filter simply ignores.
 
 ## Gotchas
 
-- **Route order**: in `src/routes/products.js`, `/lookup` and `/` are declared **before** `/:id` —
-  Express matches top-down, so a literal route after `/:id` would be shadowed.
+- **Route order**: in `src/routes/products.js`, the literal routes `/lookup`, `/reorder`, and
+  `/upload-image` are declared **before** `/:id` — Express matches top-down, so a literal route after
+  `/:id` would be shadowed.
+- **Products carry ≥1 variant**: POST/PATCH validate the `variants[]` payload up front (`buildVariants`
+  throws on an empty list); `applyVariants` create/update/deletes variant rows to match in one tx.
 - **Soft delete by default**: `DELETE /products/:id` sets `isActive:false` + `isVisible:false` (keeps
-  bill history). Only `?hard=1` truly deletes, and only if the product was never sold.
-- **Product create vs. stock**: the product create/edit form does not change `stockQty` after creation
-  — stock only moves through `POST /products/:id/stock` (which records a movement). The Edit modal's
-  stock field is read-only by design.
-- **Image upload** (`multer` → `uploads/`) needs the product to exist first; the UI creates/updates the
-  product, then POSTs the image to `/products/:id/image`.
+  bill history). Only `?hard=1` truly deletes (cascading its variants), and only if never sold.
+- **Product ordering**: `sortOrder` (ascending = top of store) is set by drag-and-drop of product
+  groups (`PATCH /products/reorder`); list + storefront feed both sort by it.
+- **Variant images** (`multer` → `uploads/`): the form POSTs each picked file to the **generic**
+  `POST /products/upload-image` (returns `{imageUrl}`, attaches to nothing), then includes the URL in
+  the variant payload on save. New products get an auto `MM-###` SKU on create.
 - **Receipts** (`src/receipt/render.js`) size `@page` to the **default** `PrinterSetting`'s paperWidth;
   there is exactly one default at a time (the printers route maintains that invariant). v1 "print" =
   browser print dialog on HTML; ESC/POS is a documented extension point.

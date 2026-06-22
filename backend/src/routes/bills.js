@@ -53,33 +53,33 @@ router.post('/', requireAuth, requirePermission(PERMISSIONS.BILLS_CREATE), async
     if (!Array.isArray(body.items) || body.items.length === 0) {
       throw v.badRequest('Add at least one item to the bill.');
     }
-    // Collapse duplicate product lines and validate qty.
+    // Collapse duplicate variant lines and validate qty.
     const wanted = new Map();
     for (const raw of body.items) {
-      const productId = v.intNonNeg(raw.productId, 'Product');
+      const variantId = v.intNonNeg(raw.variantId, 'Variant');
       const qty = v.intNonNeg(raw.qty, 'Quantity');
       if (qty < 1) throw v.badRequest('Each item needs a quantity of at least 1.');
-      wanted.set(productId, (wanted.get(productId) || 0) + qty);
+      wanted.set(variantId, (wanted.get(variantId) || 0) + qty);
     }
 
     const bill = await prisma.$transaction(async (tx) => {
       const ids = [...wanted.keys()];
-      const products = await tx.product.findMany({ where: { id: { in: ids } } });
-      const byId = new Map(products.map((p) => [p.id, p]));
+      const variants = await tx.variant.findMany({ where: { id: { in: ids } }, include: { product: true } });
+      const byId = new Map(variants.map((vr) => [vr.id, vr]));
 
       const lineData = [];
       let subtotalMinor = 0;
-      for (const [productId, qty] of wanted) {
-        const p = byId.get(productId);
-        if (!p || !p.isActive) throw v.badRequest(`Product #${productId} is unavailable.`);
-        if (p.stockQty < qty) throw v.badRequest(`Not enough stock for "${p.name}" (have ${p.stockQty}).`);
-        const lineTotalMinor = p.sellPriceMinor * qty;
+      for (const [variantId, qty] of wanted) {
+        const vr = byId.get(variantId);
+        if (!vr || !vr.product || !vr.product.isActive) throw v.badRequest(`Variant #${variantId} is unavailable.`);
+        const lineTotalMinor = vr.sellPriceMinor * qty;
         subtotalMinor += lineTotalMinor;
         lineData.push({
-          productId: p.id,
-          nameSnapshot: p.name,
+          productId: vr.productId,
+          variantId: vr.id,
+          nameSnapshot: `${vr.product.name} — ${vr.name}`,
           qty,
-          unitPriceMinor: p.sellPriceMinor,
+          unitPriceMinor: vr.sellPriceMinor,
           lineTotalMinor,
         });
       }
@@ -99,24 +99,7 @@ router.post('/', requireAuth, requirePermission(PERMISSIONS.BILLS_CREATE), async
         },
         include: { items: true, staff: true },
       });
-
-      // Decrement stock + record SALE movements.
-      for (const line of lineData) {
-        await tx.product.update({
-          where: { id: line.productId },
-          data: { stockQty: { decrement: line.qty } },
-        });
-        await tx.stockMovement.create({
-          data: {
-            productId: line.productId,
-            type: 'SALE',
-            qty: -line.qty,
-            reason: created.billNo,
-            staffId: req.user.id,
-            billId: created.id,
-          },
-        });
-      }
+      // Stock is a simple availability switch now — nothing to decrement here.
       return created;
     });
 

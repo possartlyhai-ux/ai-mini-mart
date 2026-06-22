@@ -27,50 +27,58 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  bills     Bill[]
-  movements StockMovement[]
+  bills Bill[]
 }
 
+// A product is a grouping; its sellable SKUs are its Variants. Shared fields
+// (unit/categories/visibility) live here; price/barcode/image/stock live on the
+// Variant. Every product has at least one variant.
 model Product {
-  id                Int      @id @default(autoincrement())
-  name              String
-  sku               String?  @unique
-  barcode           String?  @unique
-  imageUrl          String?
-  costPriceMinor    Int      @default(0)
-  sellPriceMinor    Int      @default(0)
-  comparePriceMinor Int? // storefront `wasTHB` (struck-through price); display-only, no promo logic
-  stockQty          Int      @default(0)
-  lowStockThreshold Int      @default(5)
-  isVisible         Boolean  @default(true) // "Show in store" toggle -> storefront feed
-  isActive          Boolean  @default(true) // soft delete / retire
-  unit              String? // e.g. "250 g", "1 pair"
-  variantLabel      String? // e.g. "Color", "Size"
-  variantsJson      String   @default("[]") // JSON: [{ label, swatch, img }]
-  tagsJson          String   @default("[]") // JSON: ["electronics", ...] (category ids)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id        Int      @id @default(autoincrement())
+  name      String // "Item Name"
+  sku       String?  @unique // stable storefront id (auto-assigned: MM-###)
+  unit      String? // "Type" — e.g. "Unit", "250 g", "1 pair"
+  tagsJson  String   @default("[]") // JSON: ["electronics", ...] (category slugs)
+  sortOrder Int      @default(0) // storefront display order; ascending = top of store
+  isVisible Boolean  @default(true) // "Show in store" toggle -> storefront feed
+  isActive  Boolean  @default(true) // soft delete / retire
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  movements StockMovement[]
+  variants  Variant[]
   billItems BillItem[]
 }
 
-model StockMovement {
-  id        Int      @id @default(autoincrement())
-  productId Int
-  type      String // "IN" | "OUT" | "ADJUST" | "SALE"
-  qty       Int // signed: positive adds stock, negative removes
-  reason    String?
-  staffId   Int?
-  billId    Int?
-  createdAt DateTime @default(now())
+// A sellable SKU. Carries its own price (THB + storefront KHR), barcode, image,
+// and in-stock switch. Scanned/sold individually in the POS.
+model Variant {
+  id             Int      @id @default(autoincrement())
+  productId      Int
+  name           String // "Variant Name" — e.g. "Big", "Small"
+  barcode        String?  @unique
+  imageUrl       String?
+  sellPriceMinor Int      @default(0) // THB price (satang) — the POS billing base
+  sellPriceKhr   Int      @default(0) // storefront KHR price (whole riel; KHR has 0 decimals)
+  inStock        Boolean  @default(true) // availability switch
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  product Product @relation(fields: [productId], references: [id])
-  staff   User?   @relation(fields: [staffId], references: [id])
-  bill    Bill?   @relation(fields: [billId], references: [id])
+  product   Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  billItems BillItem[]
 
   @@index([productId])
-  @@index([createdAt])
+}
+
+// Editable storefront categories. Products reference these by `slug` in tagsJson.
+model Category {
+  id        Int      @id @default(autoincrement())
+  slug      String   @unique
+  label     String
+  icon      String?
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Bill {
@@ -85,9 +93,8 @@ model Bill {
   staffId       Int
   createdAt     DateTime @default(now())
 
-  staff     User            @relation(fields: [staffId], references: [id])
-  items     BillItem[]
-  movements StockMovement[]
+  staff User       @relation(fields: [staffId], references: [id])
+  items BillItem[]
 
   @@index([createdAt])
   @@index([staffId])
@@ -97,13 +104,15 @@ model BillItem {
   id             Int    @id @default(autoincrement())
   billId         Int
   productId      Int? // nullable so history survives product deletion
-  nameSnapshot   String
+  variantId      Int? // nullable so history survives variant deletion
+  nameSnapshot   String // "Product — Variant" at sale time
   qty            Int
   unitPriceMinor Int
   lineTotalMinor Int
 
   bill    Bill     @relation(fields: [billId], references: [id])
   product Product? @relation(fields: [productId], references: [id])
+  variant Variant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
 
   @@index([billId])
   @@index([productId])

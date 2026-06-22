@@ -25,14 +25,22 @@ const esc = (s) =>
 const fmtDate = (d) => new Date(d).toLocaleString('en-GB', { hour12: false }).replace(',', '');
 const debounce = (fn, ms = 250) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
 
-const CATEGORIES = [
-  ['electronics', 'Electronics'], ['home', 'Home'], ['apparel', 'Apparel'],
-  ['accessories', 'Accessories'], ['tools', 'Tools'], ['grocery', 'Grocery'],
-];
-
 // ---- app state ----------------------------------------------------------
-const state = { user: null, permissions: [], route: 'pos', cart: [], currency: 'THB' };
+const state = { user: null, permissions: [], route: 'pos', cart: [], currency: 'THB', categories: [] };
 const can = (perm) => state.permissions.includes(perm);
+
+// Categories come from the DB now (staff-editable). Cache them; pass force=true
+// after a change to refresh.
+async function loadCategories(force = false) {
+  if (!force && state.categories.length) return state.categories;
+  try {
+    const { categories } = await API.get('/categories');
+    state.categories = categories;
+  } catch {
+    state.categories = [];
+  }
+  return state.categories;
+}
 
 function toast(msg, type = 'ok') {
   const t = $('#toast');
@@ -79,6 +87,7 @@ function onAuthed(user) {
   $('#app').hidden = false;
   $('#whoami').textContent = `${user.name} · ${user.role}`;
   buildNav();
+  applyNavCollapsed();
   // pick a default route the user is allowed to see
   const first = $$('.navlink').find((a) => !a.hidden);
   go(first ? first.dataset.route : 'pos');
@@ -108,7 +117,21 @@ function buildNav() {
     a.onclick = () => go(a.dataset.route);
   });
 }
-$('#nav-toggle').addEventListener('click', () => $('#sidenav').classList.toggle('open'));
+// ☰ toggles the off-canvas drawer on mobile, and collapses to an icon rail on
+// desktop (persisted across reloads).
+const NAV_KEY = 'mymart.navCollapsed';
+function applyNavCollapsed() {
+  $('#sidenav').classList.toggle('collapsed', localStorage.getItem(NAV_KEY) === '1');
+}
+$('#nav-toggle').addEventListener('click', () => {
+  const sidenav = $('#sidenav');
+  if (window.matchMedia('(max-width: 820px)').matches) {
+    sidenav.classList.toggle('open');
+  } else {
+    const collapsed = sidenav.classList.toggle('collapsed');
+    localStorage.setItem(NAV_KEY, collapsed ? '1' : '0');
+  }
+});
 
 function go(route) {
   state.route = route;
@@ -116,7 +139,7 @@ function go(route) {
   $('#sidenav').classList.remove('open');
   const view = $('#view');
   view.innerHTML = '<div class="empty">Loading…</div>';
-  ({ pos: renderPOS, products: renderProducts, bills: renderBills, reports: renderReports, staff: renderStaff, printers: renderPrinters }[route] || renderPOS)(view);
+  ({ pos: renderPOS, products: renderProducts, categories: renderCategories, bills: renderBills, reports: renderReports, staff: renderStaff, printers: renderPrinters }[route] || renderPOS)(view);
 }
 
 // =========================================================================
@@ -177,8 +200,8 @@ function renderPOS(view) {
     const msg = $('#scan-msg', view);
     msg.hidden = true;
     try {
-      const { product } = await API.get(`/products/lookup?code=${encodeURIComponent(code)}`);
-      addToCart(product);
+      const { variant, product } = await API.get(`/products/lookup?code=${encodeURIComponent(code)}`);
+      addToCart(variant, product);
       scan.value = '';
     } catch (err) {
       msg.textContent = err.message;
@@ -192,17 +215,20 @@ function renderPOS(view) {
     if (!q) { results.innerHTML = ''; return; }
     try {
       const { products } = await API.get(`/products?search=${encodeURIComponent(q)}`);
-      results.innerHTML = products.length
-        ? products.map((p) => `
-          <div class="pos-prod" data-id="${p.id}">
-            <img class="thumb" src="${esc(p.imageUrl || '')}" onerror="this.style.visibility='hidden'" />
-            <div class="nm">${esc(p.name)}<small>${esc(p.sku || '')} · ${fmtMinor(p.sellPriceMinor, state.currency)} · stock ${p.stockQty}</small></div>
-            <span class="badge ${p.stockStatus}">${p.stockStatus}</span>
+      // flatten to one selectable row per variant
+      const rows = [];
+      products.forEach((p) => (p.variants || []).forEach((vr) => rows.push({ p, vr })));
+      results.innerHTML = rows.length
+        ? rows.map((r, i) => `
+          <div class="pos-prod" data-i="${i}">
+            <img class="thumb" src="${esc(r.vr.imageUrl || r.p.imageUrl || '')}" onerror="this.style.visibility='hidden'" />
+            <div class="nm">${esc(r.p.name)} — ${esc(r.vr.name)}<small>${esc(r.vr.barcode || '')} · ${fmtMinor(r.vr.sellPriceMinor, state.currency)}</small></div>
+            <span class="badge ${r.vr.inStock ? 'in' : 'out'}">${r.vr.inStock ? 'in stock' : 'out'}</span>
           </div>`).join('')
         : '<div class="empty">No matches.</div>';
       $$('.pos-prod', results).forEach((el) => {
-        const p = products.find((x) => x.id === Number(el.dataset.id));
-        el.onclick = () => addToCart(p);
+        const r = rows[Number(el.dataset.i)];
+        el.onclick = () => addToCart(r.vr, r.p);
       });
     } catch (err) { toast(err.message, 'err'); }
   });
@@ -212,16 +238,13 @@ function renderPOS(view) {
   drawCart();
 }
 
-function addToCart(p) {
-  if (p.stockQty <= 0) return toast(`"${p.name}" is out of stock.`, 'err');
-  const line = state.cart.find((l) => l.productId === p.id);
-  if (line) {
-    if (line.qty + 1 > p.stockQty) return toast(`Only ${p.stockQty} in stock.`, 'err');
-    line.qty += 1;
-  } else {
-    state.cart.push({ productId: p.id, name: p.name, unitPriceMinor: p.sellPriceMinor, qty: 1, stockQty: p.stockQty });
-  }
-  toast(`Added ${p.name}`);
+function addToCart(variant, product) {
+  if (!variant.inStock) return toast(`"${variant.name}" is marked out of stock.`, 'err');
+  const name = `${product.name} — ${variant.name}`;
+  const line = state.cart.find((l) => l.variantId === variant.id);
+  if (line) line.qty += 1;
+  else state.cart.push({ variantId: variant.id, name, unitPriceMinor: variant.sellPriceMinor, qty: 1 });
+  toast(`Added ${name}`);
   drawCart();
 }
 
@@ -254,8 +277,7 @@ function drawCart() {
 function setQty(i, q) {
   const l = state.cart[i];
   if (!l) return;
-  q = Math.max(1, Math.min(q || 1, l.stockQty));
-  l.qty = q;
+  l.qty = Math.max(1, q || 1);
   drawCart();
 }
 function updateTotals() {
@@ -273,7 +295,7 @@ async function charge() {
   btn.disabled = true;
   try {
     const payload = {
-      items: state.cart.map((l) => ({ productId: l.productId, qty: l.qty })),
+      items: state.cart.map((l) => ({ variantId: l.variantId, qty: l.qty })),
       paymentMethod: $('#pos-payment').value,
       customerName: $('#pos-customer').value.trim() || undefined,
       currency: state.currency,
@@ -294,6 +316,7 @@ async function charge() {
 // PRODUCTS
 // =========================================================================
 async function renderProducts(view) {
+  await loadCategories();
   view.innerHTML = `
     <div class="page-head">
       <h2>📦 Products</h2><div class="spacer"></div>
@@ -301,18 +324,22 @@ async function renderProducts(view) {
     </div>
     <div class="toolbar">
       <input id="p-search" class="grow" placeholder="Search name, SKU, barcode…" />
-      <select id="p-cat"><option value="">All categories</option>${CATEGORIES.map(([id, l]) => `<option value="${id}">${l}</option>`).join('')}</select>
-      <select id="p-stock"><option value="">Any stock</option><option value="in">In stock</option><option value="low">Low</option><option value="out">Out</option></select>
+      <select id="p-cat"><option value="">All categories</option>${state.categories.map((c) => `<option value="${esc(c.slug)}">${esc(c.label)}</option>`).join('')}</select>
+      <select id="p-stock"><option value="">Any stock</option><option value="in">In stock</option><option value="out">Out of stock</option></select>
     </div>
+    <p class="muted" style="margin:-.5rem 0 1rem;font-size:.8rem">Drag the ⠿ handle to set the order products appear in the storefront (top = first). Reordering is off while a search or filter is active.</p>
     <div id="p-table" class="table-wrap"></div>`;
 
   const load = async () => {
+    const search = $('#p-search', view).value.trim();
+    const cat = $('#p-cat', view).value;
+    const stock = $('#p-stock', view).value;
     const qs = new URLSearchParams();
-    if ($('#p-search', view).value.trim()) qs.set('search', $('#p-search', view).value.trim());
-    if ($('#p-cat', view).value) qs.set('category', $('#p-cat', view).value);
-    if ($('#p-stock', view).value) qs.set('stock', $('#p-stock', view).value);
+    if (search) qs.set('search', search);
+    if (cat) qs.set('category', cat);
+    if (stock) qs.set('stock', stock);
     const { products } = await API.get(`/products?${qs.toString()}`);
-    drawProducts(products);
+    drawProducts(products, { reorderable: !search && !cat && !stock, reload: load });
   };
   $('#p-search', view).addEventListener('input', debounce(load, 250));
   $('#p-cat', view).onchange = load;
@@ -321,36 +348,59 @@ async function renderProducts(view) {
   load();
 }
 
-function drawProducts(products) {
-  const showCost = can('products:cost');
+const fmtKhr = (riel) => `${Number(riel || 0).toLocaleString('en-US')} ៛`;
+
+function drawProducts(products, { reorderable = false, reload = () => go('products') } = {}) {
+  const canWrite = can('products:write');
+  const canDrag = reorderable && canWrite;
   const wrap = $('#p-table');
   if (!products.length) { wrap.innerHTML = '<div class="empty">No products match.</div>'; return; }
+  const handleTitle = reorderable ? 'Drag to reorder' : 'Clear search/filters to reorder';
+
+  // One <tbody> per product (so its variant rows drag together as a group).
   wrap.innerHTML = `
     <table><thead><tr>
-      <th></th><th>Name</th><th>SKU / Barcode</th><th class="num">Sell</th>${showCost ? '<th class="num">Cost</th>' : ''}
-      <th class="num">Stock</th><th>Status</th><th>In store</th><th></th>
-    </tr></thead><tbody>
+      <th></th><th></th><th>Item / Variant</th><th>Type</th><th class="num">Price</th>
+      <th>Barcode</th><th>In stock</th><th>In store</th><th></th>
+    </tr></thead>
     ${products.map((p) => `
-      <tr>
-        <td><img class="thumb" src="${esc(p.imageUrl || '')}" onerror="this.style.visibility='hidden'"/></td>
-        <td><strong>${esc(p.name)}</strong><br/><small class="muted">${esc(p.unit || '')} ${p.tags.map((t) => `<span class="tag-chip">${esc(t)}</span>`).join('')}</small></td>
-        <td><small>${esc(p.sku || '—')}<br/>${esc(p.barcode || '—')}</small></td>
-        <td class="num">${fmtMinor(p.sellPriceMinor, 'THB')}${p.comparePriceMinor ? `<br/><small class="muted" style="text-decoration:line-through">${fmtMinor(p.comparePriceMinor, 'THB')}</small>` : ''}</td>
-        ${showCost ? `<td class="num">${fmtMinor(p.costPriceMinor, 'THB')}</td>` : ''}
-        <td class="num">${p.stockQty}</td>
-        <td><span class="badge ${p.stockStatus}">${p.stockStatus}</span></td>
-        <td>${can('storefront:toggle')
-          ? `<label class="switch"><input type="checkbox" data-vis="${p.id}" ${p.isVisible ? 'checked' : ''}/><span class="slider"></span></label>`
-          : `<span class="badge ${p.isVisible ? 'in' : 'muted'}">${p.isVisible ? 'on' : 'off'}</span>`}</td>
-        <td><div class="row-actions">
-          ${can('products:write') ? `<button class="btn btn-sm" data-stock="${p.id}">Stock</button>` : ''}
-          ${can('products:write') ? `<button class="btn btn-sm" data-edit="${p.id}">Edit</button>` : ''}
-          ${can('products:delete') ? `<button class="btn btn-sm btn-danger" data-del="${p.id}">Del</button>` : ''}
-        </div></td>
-      </tr>`).join('')}
-    </tbody></table>`;
+      <tbody class="prod-group" data-id="${p.id}" ${canDrag ? 'draggable="true"' : ''}>
+        <tr class="prod-row">
+          <td class="drag-handle" aria-disabled="${!canDrag}" title="${handleTitle}">⠿</td>
+          <td><img class="thumb" src="${esc(p.imageUrl || '')}" onerror="this.style.visibility='hidden'"/></td>
+          <td><strong>${esc(p.name)}</strong><br/><small class="muted">${p.tags.map((t) => `<span class="tag-chip">${esc(t)}</span>`).join('')}</small></td>
+          <td>${esc(p.unit || '')}</td>
+          <td></td><td></td><td></td>
+          <td>${can('storefront:toggle')
+            ? `<label class="switch"><input type="checkbox" data-vis="${p.id}" ${p.isVisible ? 'checked' : ''}/><span class="slider"></span></label>`
+            : `<span class="badge ${p.isVisible ? 'in' : 'muted'}">${p.isVisible ? 'on' : 'off'}</span>`}</td>
+          <td><div class="row-actions">
+            ${canWrite ? `<button class="btn btn-sm" data-edit="${p.id}">Edit</button>` : ''}
+            ${can('products:delete') ? `<button class="btn btn-sm btn-danger" data-del="${p.id}">Del</button>` : ''}
+          </div></td>
+        </tr>
+        ${(p.variants || []).map((vr) => `
+          <tr class="var-row">
+            <td></td>
+            <td><img class="thumb sm" src="${esc(vr.imageUrl || '')}" onerror="this.style.visibility='hidden'"/></td>
+            <td class="var-name">↳ ${esc(vr.name)}</td>
+            <td></td>
+            <td class="num">${fmtMinor(vr.sellPriceMinor, 'THB')}<br/><small class="muted">${fmtKhr(vr.sellPriceKhr)}</small></td>
+            <td><small class="muted">${esc(vr.barcode || '—')}</small></td>
+            <td>${canWrite
+              ? `<label class="switch"><input type="checkbox" data-vstock="${vr.id}" ${vr.inStock ? 'checked' : ''}/><span class="slider"></span></label>`
+              : `<span class="badge ${vr.inStock ? 'in' : 'out'}">${vr.inStock ? 'in' : 'out'}</span>`}</td>
+            <td></td><td></td>
+          </tr>`).join('')}
+      </tbody>`).join('')}
+    </table>`;
 
-  const reload = () => go('products');
+  wrap.querySelectorAll('[data-vstock]').forEach((el) => {
+    el.onchange = async () => {
+      try { await API.patch(`/products/variants/${el.dataset.vstock}/stock`, { inStock: el.checked }); toast(el.checked ? 'Variant in stock' : 'Variant out of stock'); }
+      catch (err) { toast(err.message, 'err'); el.checked = !el.checked; }
+    };
+  });
   wrap.querySelectorAll('[data-vis]').forEach((el) => {
     el.onchange = async () => {
       try { await API.patch(`/products/${el.dataset.vis}/visibility`, { isVisible: el.checked }); toast('Visibility updated'); }
@@ -361,38 +411,59 @@ function drawProducts(products) {
     const { product } = await API.get(`/products/${el.dataset.edit}`);
     productForm(product, reload);
   }));
-  wrap.querySelectorAll('[data-stock]').forEach((el) => (el.onclick = async () => {
-    const { product } = await API.get(`/products/${el.dataset.stock}`);
-    stockForm(product, reload);
-  }));
   wrap.querySelectorAll('[data-del]').forEach((el) => (el.onclick = async () => {
     if (!confirm('Delete (retire) this product? It will be hidden from the store and POS.')) return;
     try { await API.del(`/products/${el.dataset.del}`); toast('Product removed'); reload(); }
     catch (err) { toast(err.message, 'err'); }
   }));
+
+  if (canDrag) wireReorder(wrap.querySelector('table'));
+}
+
+// HTML5 drag-and-drop reordering of product groups (<tbody>) -> PATCH /products/reorder.
+function wireReorder(table) {
+  let dragEl = null;
+  table.querySelectorAll('tbody[draggable]').forEach((tb) => {
+    tb.addEventListener('dragstart', (e) => { dragEl = tb; tb.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; });
+    tb.addEventListener('dragend', () => {
+      tb.classList.remove('dragging');
+      table.querySelectorAll('.drag-over').forEach((x) => x.classList.remove('drag-over'));
+      dragEl = null;
+    });
+    tb.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      if (!dragEl || dragEl === tb) return;
+      const rect = tb.getBoundingClientRect();
+      const before = e.clientY < rect.top + rect.height / 2;
+      table.insertBefore(dragEl, before ? tb : tb.nextSibling);
+    });
+  });
+  table.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    const order = [...table.querySelectorAll('tbody[data-id]')].map((tb) => Number(tb.dataset.id));
+    try { await API.patch('/products/reorder', { order }); toast('Order saved'); }
+    catch (err) { toast(err.message, 'err'); go('products'); }
+  });
 }
 
 function productForm(p, onSaved) {
   const isNew = !p;
-  const showCost = can('products:cost');
   const tags = (p && p.tags) || [];
   const form = node(`<form>
     <div class="form-grid">
-      <label class="full">Name<input name="name" required value="${esc(p?.name || '')}"/></label>
-      <label>SKU<input name="sku" value="${esc(p?.sku || '')}"/></label>
-      <label>Barcode<input name="barcode" value="${esc(p?.barcode || '')}"/></label>
-      <label>Sell price (THB)<input name="sellPrice" type="number" step="0.01" min="0" required value="${p ? p.sellPrice : ''}"/></label>
-      ${showCost ? `<label>Cost price (THB)<input name="costPrice" type="number" step="0.01" min="0" value="${p ? (p.costPrice ?? '') : ''}"/></label>` : ''}
-      <label>Compare-at / was (THB)<input name="comparePrice" type="number" step="0.01" min="0" value="${p && p.comparePrice != null ? p.comparePrice : ''}"/></label>
-      <label>Unit<input name="unit" placeholder="e.g. 250 g" value="${esc(p?.unit || '')}"/></label>
-      <label>Stock qty<input name="stockQty" type="number" min="0" value="${p ? p.stockQty : 0}" ${p ? 'readonly title="Use the Stock button to adjust"' : ''}/></label>
-      <label>Low-stock threshold<input name="lowStockThreshold" type="number" min="0" value="${p ? p.lowStockThreshold : 5}"/></label>
-      <label class="full">Image URL<input name="imageUrl" value="${esc(p?.imageUrl || '')}" placeholder="https://… or upload below"/></label>
-      ${p ? '<label class="full">Upload image<input name="imageFile" type="file" accept="image/*"/></label>' : ''}
+      <label class="full">Item name<input name="name" required value="${esc(p?.name || '')}"/></label>
+      <label>Type / unit<input name="unit" placeholder="e.g. Unit, 250 g" value="${esc(p?.unit || '')}"/></label>
+      <label class="full checks" style="align-self:end"><input type="checkbox" name="isVisible" ${p ? (p.isVisible ? 'checked' : '') : 'checked'}/> Show in store</label>
       <div class="full"><div class="muted" style="margin-bottom:.3rem">Categories</div>
-        <div class="checks">${CATEGORIES.map(([id, l]) => `<label><input type="checkbox" name="tags" value="${id}" ${tags.includes(id) ? 'checked' : ''}/>${l}</label>`).join('')}</div>
+        <div class="checks">${state.categories.length
+          ? state.categories.map((c) => `<label><input type="checkbox" name="tags" value="${esc(c.slug)}" ${tags.includes(c.slug) ? 'checked' : ''}/>${esc(c.label)}</label>`).join('')
+          : '<span class="muted">No categories yet — add some on the Categories page.</span>'}</div>
       </div>
-      <label class="full checks"><input type="checkbox" name="isVisible" ${p ? (p.isVisible ? 'checked' : '') : 'checked'}/> Show in store</label>
+      <div class="full">
+        <div class="muted" style="margin-bottom:.3rem">Variants — each has its own price, barcode, image &amp; stock</div>
+        <div class="variants" data-variants></div>
+        <button type="button" class="btn btn-sm" data-add-variant>+ Add variant</button>
+      </div>
     </div>
     <p class="error" data-err hidden></p>
     <div class="modal-actions">
@@ -402,54 +473,143 @@ function productForm(p, onSaved) {
   </form>`);
   form.querySelector('[data-close]').onclick = closeModal;
 
+  // ---- variants editor (each variant is its own SKU) ----
+  const variantsBox = form.querySelector('[data-variants]');
+  const addVariantRow = (vr = {}) => {
+    const row = node(`<div class="variant-card" data-vrow>
+      <div class="variant-card-head">
+        <input data-vname placeholder="Variant name e.g. Big" value="${esc(vr.name || '')}"/>
+        <button type="button" class="btn btn-sm btn-danger" data-vremove title="Remove variant">✕</button>
+      </div>
+      <div class="variant-card-grid">
+        <label>Barcode<input data-vbarcode placeholder="scan / type" value="${esc(vr.barcode || '')}"/></label>
+        <label>Price (THB) ฿<input data-vthb type="number" step="0.01" min="0" value="${vr.sellPrice != null ? vr.sellPrice : ''}"/></label>
+        <label>Price (KHR) ៛<input data-vkhr type="number" step="1" min="0" value="${vr.sellPriceKhr != null ? vr.sellPriceKhr : 0}"/></label>
+        <label class="checks vstock"><input type="checkbox" data-vstock ${vr.inStock === false ? '' : 'checked'}/> In stock</label>
+        <div class="vimg">
+          <img class="img-preview" data-vpreview src="${esc(vr.imageUrl || '')}" onerror="this.style.visibility='hidden'" alt=""/>
+          <input type="file" data-vfile accept="image/*"/>
+        </div>
+      </div>
+    </div>`);
+    row.dataset.imageUrl = vr.imageUrl || '';
+    if (vr.id != null) row.dataset.vid = vr.id;
+    const preview = row.querySelector('[data-vpreview]');
+    if (!vr.imageUrl) preview.style.visibility = 'hidden';
+    row.querySelector('[data-vfile]').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) { preview.src = URL.createObjectURL(file); preview.style.visibility = 'visible'; }
+    });
+    row.querySelector('[data-vremove]').onclick = () => row.remove();
+    variantsBox.appendChild(row);
+  };
+  const seed = (p?.variants && p.variants.length) ? p.variants : [{}];
+  seed.forEach(addVariantRow);
+  form.querySelector('[data-add-variant]').onclick = () => addVariantRow();
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const errBox = form.querySelector('[data-err]');
     errBox.hidden = true;
+    const submitBtn = form.querySelector('.btn-primary');
     const fd = new FormData(form);
-    const body = {
-      name: fd.get('name'),
-      sku: fd.get('sku'),
-      barcode: fd.get('barcode'),
-      sellPrice: fd.get('sellPrice'),
-      comparePrice: fd.get('comparePrice') || null,
-      unit: fd.get('unit'),
-      lowStockThreshold: fd.get('lowStockThreshold'),
-      imageUrl: fd.get('imageUrl'),
-      isVisible: fd.get('isVisible') === 'on',
-      tags: fd.getAll('tags'),
-    };
-    if (showCost) body.costPrice = fd.get('costPrice') || 0;
-    if (isNew) body.stockQty = fd.get('stockQty');
+    const rows = [...variantsBox.querySelectorAll('[data-vrow]')].filter((r) => r.querySelector('[data-vname]').value.trim());
+    if (!rows.length) { errBox.textContent = 'Add at least one variant.'; errBox.hidden = false; return; }
+
+    submitBtn.disabled = true;
     try {
-      const saved = isNew ? await API.post('/products', body) : await API.patch(`/products/${p.id}`, body);
-      const file = fd.get('imageFile');
-      if (file && file.size) {
-        const imgFd = new FormData();
-        imgFd.append('image', file);
-        await API.upload(`/products/${(saved.product || p).id}/image`, imgFd);
+      // Upload any newly-picked variant images first, then fold the URLs in.
+      const variants = [];
+      for (const r of rows) {
+        let imageUrl = r.dataset.imageUrl || '';
+        const file = r.querySelector('[data-vfile]').files[0];
+        if (file) {
+          const imgFd = new FormData();
+          imgFd.append('image', file);
+          imageUrl = (await API.upload('/products/upload-image', imgFd)).imageUrl;
+        }
+        variants.push({
+          id: r.dataset.vid || undefined,
+          name: r.querySelector('[data-vname]').value.trim(),
+          barcode: r.querySelector('[data-vbarcode]').value.trim(),
+          imageUrl,
+          sellPrice: r.querySelector('[data-vthb]').value || 0,
+          sellPriceKhr: r.querySelector('[data-vkhr]').value || 0,
+          inStock: r.querySelector('[data-vstock]').checked,
+        });
       }
+      const body = {
+        name: fd.get('name'),
+        unit: fd.get('unit'),
+        isVisible: fd.get('isVisible') === 'on',
+        tags: fd.getAll('tags'),
+        variants,
+      };
+      if (isNew) await API.post('/products', body);
+      else await API.patch(`/products/${p.id}`, body);
       toast(isNew ? 'Product created' : 'Product saved');
       closeModal();
       onSaved();
     } catch (err) {
       errBox.textContent = err.message;
       errBox.hidden = false;
+    } finally {
+      submitBtn.disabled = false;
     }
   });
   openModal(isNew ? 'Add product' : 'Edit product', form);
 }
 
-function stockForm(p, onSaved) {
+// =========================================================================
+// CATEGORIES (editable; owner only)
+// =========================================================================
+async function renderCategories(view) {
+  view.innerHTML = `
+    <div class="page-head"><h2>🏷️ Categories</h2><div class="spacer"></div>
+      <button id="add-cat" class="btn btn-primary">+ Add category</button></div>
+    <p class="muted" style="margin:-.5rem 0 1rem;font-size:.85rem">Categories drive the storefront filters. Drag order is set by the Sort field. Removing a category just unlists it — products keep working.</p>
+    <div id="c-table" class="table-wrap"></div>`;
+  const load = async () => {
+    await loadCategories(true);
+    const wrap = $('#c-table', view);
+    if (!state.categories.length) { wrap.innerHTML = '<div class="empty">No categories yet.</div>'; return; }
+    wrap.innerHTML = `
+      <table><thead><tr><th>Icon</th><th>Label</th><th>Slug</th><th class="num">Sort</th><th></th></tr></thead>
+      <tbody>${state.categories.map((c) => `
+        <tr>
+          <td style="font-size:1.2rem">${esc(c.icon || '')}</td>
+          <td><strong>${esc(c.label)}</strong></td>
+          <td><small class="muted">${esc(c.slug)}</small></td>
+          <td class="num">${c.sortOrder}</td>
+          <td><div class="row-actions">
+            <button class="btn btn-sm" data-edit="${c.id}">Edit</button>
+            <button class="btn btn-sm btn-danger" data-del="${c.id}">Del</button>
+          </div></td>
+        </tr>`).join('')}</tbody></table>`;
+    wrap.querySelectorAll('[data-edit]').forEach((el) => (el.onclick = () =>
+      categoryForm(state.categories.find((x) => x.id === Number(el.dataset.edit)), load)));
+    wrap.querySelectorAll('[data-del]').forEach((el) => (el.onclick = async () => {
+      if (!confirm('Remove this category? Products tagged with it keep working; it just disappears from the list.')) return;
+      try { await API.del(`/categories/${el.dataset.del}`); toast('Category removed'); load(); }
+      catch (err) { toast(err.message, 'err'); }
+    }));
+  };
+  $('#add-cat', view).onclick = () => categoryForm(null, load);
+  load();
+}
+
+function categoryForm(c, onSaved) {
+  const isNew = !c;
   const form = node(`<form>
-    <p>Current stock for <strong>${esc(p.name)}</strong>: <strong>${p.stockQty}</strong></p>
     <div class="form-grid">
-      <label>Action<select name="type"><option value="IN">Add (IN)</option><option value="OUT">Remove (OUT)</option><option value="ADJUST">Set to (ADJUST)</option></select></label>
-      <label>Quantity<input name="qty" type="number" min="0" value="1" required/></label>
-      <label class="full">Reason<input name="reason" placeholder="e.g. delivery, damaged, recount"/></label>
+      <label class="full">Label<input name="label" required value="${esc(c?.label || '')}" placeholder="e.g. Beverages"/></label>
+      <label>Icon (emoji)<input name="icon" value="${esc(c?.icon || '')}" placeholder="🥤" maxlength="4"/></label>
+      <label>Sort order<input name="sortOrder" type="number" min="0" value="${c ? c.sortOrder : 0}"/></label>
+      ${isNew ? '' : `<label class="full">Slug<input name="slug" value="${esc(c.slug)}"/></label>`}
     </div>
+    <p class="muted" style="font-size:.8rem">${isNew ? 'The slug is generated from the label.' : 'Changing the slug will unlink products tagged with the old slug.'}</p>
     <p class="error" data-err hidden></p>
-    <div class="modal-actions"><button type="button" class="btn" data-close>Cancel</button><button class="btn btn-primary">Apply</button></div>
+    <div class="modal-actions"><button type="button" class="btn" data-close>Cancel</button><button class="btn btn-primary">${isNew ? 'Create' : 'Save'}</button></div>
   </form>`);
   form.querySelector('[data-close]').onclick = closeModal;
   form.addEventListener('submit', async (e) => {
@@ -457,14 +617,16 @@ function stockForm(p, onSaved) {
     const errBox = form.querySelector('[data-err]');
     errBox.hidden = true;
     const fd = new FormData(form);
+    const body = { label: fd.get('label'), icon: fd.get('icon'), sortOrder: fd.get('sortOrder') };
+    if (!isNew) body.slug = fd.get('slug');
     try {
-      await API.post(`/products/${p.id}/stock`, { type: fd.get('type'), qty: fd.get('qty'), reason: fd.get('reason') });
-      toast('Stock updated');
+      if (isNew) await API.post('/categories', body); else await API.patch(`/categories/${c.id}`, body);
+      toast(isNew ? 'Category created' : 'Category saved');
       closeModal();
       onSaved();
     } catch (err) { errBox.textContent = err.message; errBox.hidden = false; }
   });
-  openModal('Adjust stock', form);
+  openModal(isNew ? 'Add category' : 'Edit category', form);
 }
 
 // =========================================================================

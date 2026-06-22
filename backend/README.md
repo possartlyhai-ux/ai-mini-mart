@@ -6,8 +6,13 @@ with barcode scanning, bill history, sales reports, staff accounts with
 role-based access, and printer/receipt setup.
 
 - **Stack:** Node.js + Express, SQLite via Prisma, vanilla HTML/JS admin UI.
-- **Money:** base currency **THB**, stored as integer minor units (satang), with
-  **KHR** conversion — identical model to the storefront (`js/currency.js`).
+- **Money:** billing base **THB**, stored as integer minor units (satang), same
+  model as the storefront (`js/currency.js`). Each variant also carries a separate,
+  staff-set **KHR price** shown on the storefront only.
+- **Catalog:** a **product** is a grouping (Item Name, Type/Unit, Categories,
+  Show-in-store); each **variant** is a sellable SKU with its own name, barcode,
+  image, **In stock / Out of stock** switch, and THB + KHR price. Plus drag-to-reorder
+  for storefront position and **editable categories**.
 - **No build step** for the UI. One command to run.
 
 ---
@@ -33,9 +38,9 @@ port, set `PORT` (see `.env.example`).
 | Owner | `owner`  | `Owner@123` | Everything                                                    |
 | Staff | `staff`  | `Staff@123` | Make bills, scan, view **own** bills, print — no cost/reports/staff/printer-config |
 
-The seed also loads **18 products** mirroring the storefront catalog (with
-barcodes, SKUs, stock — two out-of-stock and two low-stock for testing) and one
-default 80 mm thermal printer.
+The seed also loads the **six default categories**, **18 products** mirroring the
+storefront catalog (each with its variants — own barcode + price; two start out of
+stock for testing), and one default 80 mm thermal printer.
 
 ### Useful scripts
 
@@ -54,17 +59,22 @@ products in the **exact** shape the storefront's `js/data.js` uses:
 
 ```json
 { "id": "MM-001", "name": "Aurora Wireless Earbuds", "tags": ["electronics","accessories"],
-  "priceTHB": 1290, "wasTHB": 1790, "inStock": true, "unit": "1 pair",
-  "variantLabel": "Color", "variants": [{ "label": "...", "swatch": "#...", "img": "..." }] }
+  "unit": "1 pair", "inStock": true, "priceTHB": 1290, "priceKHR": 147060,
+  "variants": [
+    { "label": "Cloud White", "img": "...", "priceTHB": 1290, "priceKHR": 147060, "inStock": true, "barcode": "..." },
+    { "label": "Onyx Black",  "img": "...", "priceTHB": 1290, "priceKHR": 147060, "inStock": true, "barcode": "..." }
+  ] }
 ```
 
-`priceTHB`/`wasTHB` are derived from the stored minor units; `inStock` from live
-stock. Later, the storefront's `data.js` can `fetch()` this instead of hardcoding
+Top-level `priceTHB`/`priceKHR`/`inStock` mirror the **first variant** (back-compat
+with the storefront card); the real per-variant prices/stock/barcodes live in
+`variants[]`. Products come back **ordered by `sortOrder`** (drag-to-reorder in the
+admin). Later, the storefront's `data.js` can `fetch()` this instead of hardcoding
 its array — same field names, same THB base, no renaming. (The frontend is **not**
 modified by this project.)
 
-There is also `GET /api/storefront/categories` mirroring the storefront's
-category ids + icons.
+There is also `GET /api/storefront/categories` returning the DB-backed
+category `{ id: slug, icon }` list, in display order.
 
 ---
 
@@ -76,7 +86,8 @@ cookie set at login. Permissions are enforced **server-side**.
 | Area      | Endpoints |
 |-----------|-----------|
 | Auth      | `POST /auth/login`, `POST /auth/logout`, `GET /auth/me` |
-| Products  | `GET/POST /products`, `GET/PATCH/DELETE /products/:id`, `GET /products/lookup?code=`, `POST /products/:id/image`, `POST /products/:id/stock`, `GET /products/:id/movements`, `PATCH /products/:id/visibility` |
+| Products  | `GET/POST /products`, `GET/PATCH/DELETE /products/:id` (with nested `variants[]`), `GET /products/lookup?code=` (variant barcode), `PATCH /products/reorder`, `POST /products/upload-image`, `PATCH /products/variants/:vid/stock`, `PATCH /products/:id/visibility` |
+| Categories| `GET /categories`, `POST /categories`, `PATCH/DELETE /categories/:id` (manage = Owner) |
 | Bills     | `POST /bills`, `GET /bills`, `GET /bills/:id`, `GET /bills/:id/receipt` |
 | Reports   | `GET /reports?period=day\|week\|month&from=&to=&currency=` |
 | Staff     | `GET/POST /staff`, `PATCH /staff/:id` (Owner) |
@@ -98,14 +109,14 @@ live in `src/lib/serialize.js`. The UI reads the resolved permission list from
 
 ```
 backend/
-  prisma/schema.prisma   data models (User, Product, StockMovement, Bill, BillItem, PrinterSetting)
-  prisma/seed.js         owner + staff + 18 storefront-matching products + default printer
+  prisma/schema.prisma   data models (User, Product, Variant, Category, Bill, BillItem, PrinterSetting)
+  prisma/seed.js         owner + staff + 6 categories + 18 products (each with variants) + default printer
   scripts/start.js       one-command bootstrap (db push + seed-if-empty + serve)
   src/server.js          Express app
-  src/config/            permissions (RBAC matrix), categories
+  src/config/            permissions (RBAC matrix), categories (seed defaults)
   src/lib/               currency (THB/KHR + satang), auth (bcrypt+JWT), validate, serialize
   src/middleware/auth.js requireAuth / requirePermission
-  src/routes/            auth, products, bills, reports, staff, printers, storefront
+  src/routes/            auth, products, categories, bills, reports, staff, printers, storefront
   src/receipt/render.js  paper-width-sized HTML receipt
   public/                admin/POS UI (index.html, styles.css, js/api.js, js/app.js)
   uploads/               product images (served at /uploads)
@@ -115,11 +126,10 @@ backend/
 
 ## Where to extend (hooks left clean for v2)
 
-- **Promotions / discounts / coupons:** the `Bill.totalMinor` is computed
-  separately from `subtotalMinor` and `Product.comparePriceMinor` already exists
-  (the storefront "was" price). Add a `Promotion` model and a price-resolution
-  step in `src/routes/bills.js` (the `lineData` loop) — nothing else needs to
-  change.
+- **Promotions / discounts / coupons:** `Bill.totalMinor` is computed separately
+  from `subtotalMinor`. Add a `Promotion` model and a price-resolution step in
+  `src/routes/bills.js` (the `lineData` loop, where each variant's price is
+  snapshotted) — nothing else needs to change.
 - **Charts:** `GET /reports` already returns raw `buckets` (per day/week/month) +
   `topProducts`; point a chart library at that data.
 - **Real thermal printing (ESC/POS):** today `src/receipt/render.js` produces

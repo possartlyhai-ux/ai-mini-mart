@@ -4,7 +4,6 @@
 // No auth, no cost/internal fields.
 const express = require('express');
 const { prisma } = require('../db');
-const { CATEGORIES } = require('../config/categories');
 const { serializeStorefrontProduct } = require('../lib/serialize');
 
 const router = express.Router();
@@ -13,7 +12,8 @@ router.get('/products', async (_req, res, next) => {
   try {
     const products = await prisma.product.findMany({
       where: { isVisible: true, isActive: true },
-      orderBy: { id: 'asc' },
+      orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+      include: { variants: { orderBy: { sortOrder: 'asc' } } },
     });
     res.json({ products: products.map(serializeStorefrontProduct) });
   } catch (err) {
@@ -21,9 +21,15 @@ router.get('/products', async (_req, res, next) => {
   }
 });
 
-// Mirrors the storefront CATEGORIES (id + icon) for parity.
-router.get('/categories', (_req, res) => {
-  res.json({ categories: CATEGORIES.map(({ id, icon }) => ({ id, icon })) });
+// Storefront categories (id = slug + icon), in display order. DB-backed so they
+// stay in sync with what staff manage in the admin.
+router.get('/categories', async (_req, res, next) => {
+  try {
+    const cats = await prisma.category.findMany({ orderBy: [{ sortOrder: 'asc' }, { label: 'asc' }] });
+    res.json({ categories: cats.map((c) => ({ id: c.slug, icon: c.icon || undefined })) });
+  } catch (err) {
+    next(err);
+  }
 });
 
 module.exports = router;
