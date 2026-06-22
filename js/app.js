@@ -126,6 +126,9 @@ function cycleCard(id) {
   updateDots(card, frames[id]);
 }
 
+// Stop the auto-rotation timer (e.g. when the tab is backgrounded).
+function stopRotation() { clearInterval(rotationTimer); }
+
 // Auto-rotate every visible card, gently staggered so it reads as a wave.
 function startRotation() {
   if (reduceMotion) return;
@@ -255,13 +258,14 @@ function renderChips() {
  * RENDER: settings menus (language / currency / theme)
  * ========================================================================= */
 function renderMenus() {
-  // Language
+  // Language. Native script labels (ខ្មែរ / ไทย / 中文) render via the Noto
+  // font stack; flag emoji were dropped because Windows shows them as raw
+  // region codes ("GB", "KH"). A mono code chip is consistent everywhere.
   $('#lang-menu').innerHTML = LANGS.map(l => `
     <button class="menu__item" role="menuitemradio" data-lang="${l.code}" aria-checked="${state.lang === l.code}">
-      <span>${l.flag}</span><span>${l.label}</span>
+      <span class="menu__code mono">${l.code.toUpperCase()}</span><span>${l.label}</span>
     </button>`).join('');
   const active = LANGS.find(l => l.code === state.lang) || LANGS[0];
-  $('#lang-flag').textContent = active.flag;
   $('#lang-code').textContent = active.code.toUpperCase();
 
   // Currency
@@ -274,8 +278,9 @@ function renderMenus() {
 
   // Theme
   const themes = [
-    { id: 'light',    emoji: '☀️', sw: '#FBFAF6' },
-    { id: 'dark',     emoji: '🌙', sw: '#0C1714' },
+    { id: 'light',    emoji: '☀️', sw: '#FFF9F3' },
+    { id: 'pandan',   emoji: '🌿', sw: '#2F8B4E' },
+    { id: 'dark',     emoji: '🌙', sw: '#19120C' },
     { id: 'festival', emoji: '🎉', sw: '#2A1245' },
   ];
   $('#theme-menu').innerHTML = themes.map(th => `
@@ -380,8 +385,28 @@ function renderCart() {
 
 /* =========================================================================
  * DRAWER (cart / checkout / done) state machine
+ * -------------------------------------------------------------------------
+ * Both the drawer and the detail popup are modal: while one is open, Tab must
+ * stay inside it (trapFocus) and closing must return focus to whatever opened
+ * it (lastFocused) — otherwise keyboard users get dumped at the top of the
+ * page. `lastFocused` is shared because the two overlays never stack.
  * ========================================================================= */
+let lastFocused = null;
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+// Keep Tab/Shift+Tab cycling within `container`. Hidden controls (e.g. the
+// not-yet-shown checkout view) are filtered out via offsetParent.
+function trapFocus(container, e) {
+  const nodes = $$(FOCUSABLE, container).filter(el => el.offsetParent !== null);
+  if (!nodes.length) return;
+  const first = nodes[0], last = nodes[nodes.length - 1];
+  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+}
+function restoreFocus() { lastFocused?.focus?.(); lastFocused = null; }
+
 function openDrawer() {
+  lastFocused = document.activeElement;
   showDrawerView('cart');
   $('#scrim').hidden = false;
   $('#drawer').classList.add('open');
@@ -394,6 +419,7 @@ function closeDrawer() {
   $('#drawer').setAttribute('aria-hidden', 'true');
   $('#scrim').hidden = true;
   document.body.style.overflow = '';
+  restoreFocus();
 }
 function showDrawerView(view) {
   $('#view-cart').hidden = view !== 'cart';
@@ -453,6 +479,7 @@ const detailState = { id: null, idx: 0, qty: 1 };
 function openDetail(id) {
   const p = PRODUCTS.find(x => x.id === id);
   if (!p) return;
+  lastFocused = document.activeElement;
   detailState.id = id;
   detailState.idx = 0;   // start on the first variant
   detailState.qty = 1;
@@ -467,6 +494,10 @@ function closeDetail() {
   $('#detail').hidden = true;
   $('#detail-scrim').hidden = true;
   if (!$('#drawer').classList.contains('open')) document.body.style.overflow = '';
+  // "Add to bag" hands off to the drawer (which captures its own focus), so
+  // only restore here when we're closing back to the grid.
+  if ($('#drawer').classList.contains('open')) lastFocused = null;
+  else restoreFocus();
 }
 
 function renderDetail() {
@@ -551,8 +582,14 @@ function setDetailQty(q) {
  * EVENT WIRING
  * ========================================================================= */
 function wire() {
-  // --- Search (live filter) ---
-  $('#search').addEventListener('input', (e) => { state.search = e.target.value; renderGrid(); });
+  // --- Search (live filter, debounced so each keystroke doesn't re-render
+  // the whole grid + re-arm every image watchdog) ---
+  let searchTimer;
+  $('#search').addEventListener('input', (e) => {
+    const v = e.target.value;
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => { state.search = v; renderGrid(); }, 120);
+  });
 
   // --- Grid: route favorite / add / cycle image / open detail ---
   $('#grid').addEventListener('click', (e) => {
@@ -616,10 +653,17 @@ function wire() {
   });
   document.addEventListener('click', closeAllMenus);
   document.addEventListener('keydown', (e) => {
-    if (e.key !== 'Escape') return;
-    closeAllMenus();
-    if (!$('#detail').hidden) closeDetail();
-    else if ($('#drawer').classList.contains('open')) closeDrawer();
+    if (e.key === 'Escape') {
+      closeAllMenus();
+      if (!$('#detail').hidden) closeDetail();
+      else if ($('#drawer').classList.contains('open')) closeDrawer();
+      return;
+    }
+    // Keep Tab inside whichever overlay is open (detail wins — it stacks above).
+    if (e.key === 'Tab') {
+      if (!$('#detail').hidden) trapFocus($('#detail'), e);
+      else if ($('#drawer').classList.contains('open')) trapFocus($('#drawer'), e);
+    }
   });
 
   $('#lang-menu').addEventListener('click', (e) => { const b = e.target.closest('[data-lang]'); if (b) { setLang(b.dataset.lang); closeAllMenus(); } });
@@ -701,10 +745,13 @@ function wire() {
 
 function toggleFav(id) {
   const i = state.favorites.indexOf(id);
-  if (i >= 0) state.favorites.splice(i, 1);
-  else state.favorites.push(id);
+  const adding = i < 0;
+  if (adding) state.favorites.push(id);
+  else state.favorites.splice(i, 1);
   persist();
   updateBadges();
+  const name = PRODUCTS.find(p => p.id === id)?.name || '';
+  toast(`${adding ? '♥' : '♡'} ${t(adding ? 'fav_added' : 'fav_removed')} · ${name}`);
   // Update just the pressed buttons without a full re-render (keeps scroll).
   $$(`[data-fav="${id}"]`).forEach(btn => {
     const on = state.favorites.includes(id);
@@ -807,6 +854,11 @@ function init() {
   updateBadges();
   wire();
   startRotation();   // begin auto-fading variant images on the cards
+  // Pause the rotation while the tab is backgrounded — no point repainting
+  // off-screen, and it saves battery on phones.
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) stopRotation(); else startRotation();
+  });
 }
 
 document.addEventListener('DOMContentLoaded', init);
