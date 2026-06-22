@@ -61,6 +61,8 @@ Each `PRODUCTS` entry has `inStock`, `unit` (e.g. "250 g"), `variantLabel`, and 
 
 PDF money uses `formatMoneyPDF` (ASCII currency **code**, e.g. `THB 1,290.00`) because jsPDF's Helvetica/WinAnsi can't render `฿`/`៛` and corrupts the digits. Item images embed via canvas→dataURL with a solid swatch tile fallback when CORS/timeout blocks pixel access.
 
+**The PDF is always English, regardless of page language.** For the same WinAnsi reason, Khmer/Thai/Chinese *labels* would garble too — so the sheet is built with `tPDF` (an English-locked translator in `app.js`, not the live `t`) and `dateStr` is forced to `en-US`. The on-screen UI stays fully multilingual; the customer's chosen language is recorded on the sheet as a `Language:` row (`order.langName`). Don't pass the live `t` to `buildOrderSheet`/`download`/`share` — it reintroduces the garbled-glyph bug.
+
 ## Gotchas
 
 - **`[hidden] { display:none !important }`** in `styles.css` is load-bearing. Several components set `display: flex/grid` via class, which would otherwise override the `hidden` attribute — the drawer's cart/checkout/done view state machine (`showDrawerView`) and the detail modal rely on this rule. Don't remove it.

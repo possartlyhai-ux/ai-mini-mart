@@ -52,5 +52,5 @@ These five `js/*` files are plain `<script>` tags (not ES modules) loaded in a f
 - **Add a currency** → add to `CURRENCIES` + `RATES` in `js/currency.js` (values are THB-based).
 - **Add a theme** → copy a `[data-theme="…"]` block in `styles.css` and remap the tokens.
 
-### Non-Latin PDF text
-The PDF uses jsPDF's built-in Helvetica, which covers Latin scripts; prices print with ASCII currency **codes** (e.g. `THB 1,290.00`) because Helvetica can't render ฿/៛. For full Khmer/Thai/Chinese glyphs in the PDF, embed a Unicode TTF via `doc.addFont(...)` (see the note in `js/pdf.js`). The on-screen UI renders all scripts correctly via web fonts.
+### The PDF is always English
+The on-screen UI is fully multilingual, but the printed order sheet is **always in English**. jsPDF's built-in Helvetica only covers Latin (WinAnsi), so Khmer/Thai/Chinese labels — and even some locale-specific dates/numerals — render as garbage. Rather than embed heavy Unicode fonts (and jsPDF still can't *shape* Khmer/Thai), the sheet is built with an English-locked translator (`tPDF`) and the customer's selected language is noted in a `Language:` row instead. Prices likewise use ASCII currency **codes** (e.g. `THB 1,290.00`) for the same reason. If you ever need a localized PDF, you'd embed a Unicode TTF via `doc.addFont(...)` (CJK only — complex scripts need a shaping engine jsPDF lacks).

@@ -116,6 +116,11 @@ async function buildOrderSheet(order, t) {
     [t('pdf_customer'), c.name || '—'],
     [t('pdf_table'), c.table || '—'],
   ];
+  // Note the customer's chosen UI language (the sheet itself is always English
+  // because jsPDF's Helvetica can't render Khmer/Thai/Chinese glyphs).
+  if (order.langName && order.langName !== 'English') {
+    rows.push([t('pdf_language'), order.langName]);
+  }
   rows.forEach(([label, val]) => {
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(...MUTED);

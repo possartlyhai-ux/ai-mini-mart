@@ -295,13 +295,6 @@ img { display: block; max-width: 100%; }
   border: 1px solid var(--line);
 }
 
-.sale-badge {
-  position: absolute; right: 10px; top: 10px;
-  background: var(--sale); color: #fff;
-  font-family: 'Space Mono', monospace; font-weight: 700; font-size: .72rem;
-  padding: 4px 8px; border-radius: 8px; box-shadow: var(--shadow-sm);
-}
-
 /* Heart favorite */
 .fav {
   position: absolute; right: 10px; bottom: 10px;
@@ -341,7 +334,6 @@ img { display: block; max-width: 100%; }
 
 .card__price { display: flex; align-items: baseline; gap: 8px; margin-top: auto; }
 .price-now { font-family: 'Space Mono', monospace; font-weight: 700; font-size: 1.18rem; color: var(--ink); }
-.price-was { font-family: 'Space Mono', monospace; font-size: .82rem; color: var(--muted); text-decoration: line-through; }
 
 .card__add {
   margin-top: 4px;
@@ -546,7 +538,6 @@ img { display: block; max-width: 100%; }
 .pd__close:hover { border-color: var(--ink); }
 .pd__price { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
 .pd__price .price-now { font-size: 1.7rem; color: var(--brand-ink); }
-.pd__price .sale-pct { background: var(--sale-soft); color: var(--sale); font-family: 'Space Mono', monospace; font-weight: 700; font-size: .8rem; padding: 3px 8px; border-radius: 8px; }
 .pd__name { font-family: 'Bricolage Grotesque', sans-serif; font-size: 1.5rem; font-weight: 800; letter-spacing: -.02em; margin: 0; line-height: 1.15; }
 .pd__tags { display: flex; gap: 7px; flex-wrap: wrap; }
 .pd__tag { font-size: .7rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; padding: 4px 9px; border-radius: 8px; background: var(--brand-soft); color: var(--brand-ink); }

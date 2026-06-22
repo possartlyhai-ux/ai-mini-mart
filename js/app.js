@@ -32,6 +32,17 @@ const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 // t(key): active language with English fallback so labels never go blank.
 function t(key) { return (I18N[state.lang] && I18N[state.lang][key]) || I18N.en[key] || key; }
 
+// tPDF(key): English-locked translator for the PDF order sheet. jsPDF's built-in
+// Helvetica only covers Latin (WinAnsi), so Khmer/Thai/Chinese labels print as
+// garbage. The printed staff sheet therefore always uses English labels while
+// the on-screen UI stays fully multilingual. The customer's chosen language is
+// still recorded on the sheet via order.langName (see buildOrder + pdf.js).
+function tPDF(key) { return I18N.en[key] || key; }
+
+// Latin/English names for the language line on the PDF (LANGS.label is native
+// script, which would itself garble in Helvetica).
+const LANG_EN_NAMES = { en: 'English', km: 'Khmer', th: 'Thai', zh: 'Chinese', fil: 'Filipino', id: 'Indonesian', vi: 'Vietnamese' };
+
 // Walk the DOM and fill anything tagged with data-i18n / data-i18n-attr.
 function applyI18n() {
   document.documentElement.lang = state.lang;
@@ -130,7 +141,7 @@ function startRotation() {
         updateDots(card, frames[id]);
       }, i * 110);
     });
-  }, 3800);
+  }, 3000);
 }
 
 function renderGrid() {
@@ -154,8 +165,6 @@ function renderGrid() {
 
   grid.innerHTML = list.map(p => {
     const fav = state.favorites.includes(p.id);
-    const onSale = p.wasTHB && p.wasTHB > p.priceTHB;
-    const pct = onSale ? Math.round((1 - p.priceTHB / p.wasTHB) * 100) : 0;
     const tags = p.tags.slice(0, 2).map(tg => `<span class="tag">${t('cat_' + tg)}</span>`).join('');
     const imgs = productImages(p);
     const frame = frames[p.id] || 0;
@@ -168,7 +177,6 @@ function renderGrid() {
           <img class="card__img" loading="lazy" src="${imgs[frame]}" alt="${p.name}" data-fb="${p.id}"
                onerror="this.onerror=null;this.src=fallbackImg('${p.id}')" />
           <div class="card__tags">${tags}</div>
-          ${onSale ? `<span class="sale-badge">-${pct}% ${t('off')}</span>` : ''}
           ${dots}
           <button class="fav" data-fav="${p.id}" aria-pressed="${fav}"
                   aria-label="${t('favorites')}: ${p.name}">
@@ -188,7 +196,6 @@ function renderGrid() {
           </div>
           <div class="card__price">
             <span class="price-now">${money(p.priceTHB)}</span>
-            ${onSale ? `<span class="price-was">${money(p.wasTHB)}</span>` : ''}
           </div>
           <button class="card__add" data-add="${p.id}" ${p.inStock ? '' : 'disabled'}>
             <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
@@ -467,8 +474,6 @@ function renderDetail() {
   const imgs = productImages(p);
   const idx = detailState.idx;
   const v = p.variants[idx];
-  const onSale = p.wasTHB && p.wasTHB > p.priceTHB;
-  const pct = onSale ? Math.round((1 - p.priceTHB / p.wasTHB) * 100) : 0;
   const multi = imgs.length > 1;
 
   $('#pd-content').innerHTML = `
@@ -483,7 +488,6 @@ function renderDetail() {
       <button class="pd__close" data-pd-close aria-label="${t('close')}">✕</button>
       <div class="pd__price">
         <span class="price-now">${money(p.priceTHB)}</span>
-        ${onSale ? `<span class="price-was">${money(p.wasTHB)}</span><span class="sale-pct">-${pct}% ${t('off')}</span>` : ''}
       </div>
       <h2 class="pd__name" id="pd-name">${p.name}</h2>
       <div class="pd__tags">${p.tags.map(tg => `<span class="pd__tag">${t('cat_' + tg)}</span>`).join('')}</div>
@@ -731,8 +735,11 @@ function buildOrder() {
   return {
     id: 'MM-' + now.getFullYear() + String(now.getMonth() + 1).padStart(2, '0') +
         String(now.getDate()).padStart(2, '0') + '-' + Math.floor(1000 + Math.random() * 9000),
-    dateStr: now.toLocaleString(),
+    // Force en-US so the printed date stays Latin (some locales render non-Latin
+    // numerals / Buddhist era that Helvetica can't draw — same issue as labels).
+    dateStr: now.toLocaleString('en-US'),
     currency: state.currency,
+    langName: LANG_EN_NAMES[state.lang] || 'English',
     customer: { name: data.name.trim(), table: data.table?.trim(), note: data.note?.trim() },
     items: cartEntries().map(({ product, variant, qty }) => {
       const v = product.variants.find(x => x.label === variant) || product.variants[0];
@@ -761,7 +768,7 @@ async function downloadOrder() {
   if (!order) return;
   const btn = $('#btn-place');
   btn.disabled = true;
-  try { await downloadOrderSheet(order, t); toast(t('saved')); }
+  try { await downloadOrderSheet(order, tPDF); toast(t('saved')); }
   catch (e) { console.error(e); toast('PDF error — see console'); }
   finally { btn.disabled = false; }
 }
@@ -775,7 +782,7 @@ async function shareOrder() {
   const btn = $('#btn-share');
   btn.disabled = true;
   try {
-    const result = await shareOrderSheet(order, t);   // 'shared' | 'downloaded' | 'cancelled'
+    const result = await shareOrderSheet(order, tPDF);   // 'shared' | 'downloaded' | 'cancelled'
     if (result === 'cancelled') return;               // user dismissed the share sheet — keep editing
     finalizeOrder(result === 'shared' ? 'order_shared_body' : 'share_fallback');
   } catch (e) { console.error(e); toast('Share error — see console'); }

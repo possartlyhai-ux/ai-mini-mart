@@ -40,7 +40,7 @@ function productImages(p) { return p.variants.map(v => v.img); }
 const PRODUCTS = [
   {
     id: 'p01', name: 'Aurora Wireless Earbuds', tags: ['electronics', 'accessories'],
-    priceTHB: 1290, wasTHB: 1790, inStock: true, unit: '1 pair', variantLabel: 'Color',
+    priceTHB: 1290, inStock: true, unit: '1 pair', variantLabel: 'Color',
     variants: [
       { label: 'Cloud White', swatch: '#EDEDED', img: pic('mymart-earbuds-white') },
       { label: 'Onyx Black',  swatch: '#1C1C1C', img: pic('mymart-earbuds-black') },
@@ -56,7 +56,7 @@ const PRODUCTS = [
   },
   {
     id: 'p03', name: 'Drift Linen Overshirt', tags: ['apparel'],
-    priceTHB: 1150, wasTHB: 1450, inStock: true, unit: 'Unisex', variantLabel: 'Color',
+    priceTHB: 1150, inStock: true, unit: 'Unisex', variantLabel: 'Color',
     variants: [
       { label: 'Olive', swatch: '#6B7253', img: pic('mymart-overshirt-olive') },
       { label: 'Ecru',  swatch: '#E6DDC7', img: pic('mymart-overshirt-ecru') },
@@ -64,7 +64,7 @@ const PRODUCTS = [
   },
   {
     id: 'p04', name: 'Nimbus 65% Mechanical Keyboard', tags: ['electronics'],
-    priceTHB: 2490, wasTHB: 2990, inStock: true, unit: '68 keys', variantLabel: 'Color',
+    priceTHB: 2490, inStock: true, unit: '68 keys', variantLabel: 'Color',
     variants: [
       { label: 'Slate', swatch: '#3A4A5A', img: pic('mymart-keyboard-slate') },
       { label: 'Cream', swatch: '#EDE6D6', img: pic('mymart-keyboard-cream') },
@@ -80,7 +80,7 @@ const PRODUCTS = [
   },
   {
     id: 'p06', name: 'Forge 24-piece Driver Kit', tags: ['tools'],
-    priceTHB: 690, wasTHB: 980, inStock: false, unit: '24 pcs', variantLabel: 'Finish',
+    priceTHB: 690, inStock: false, unit: '24 pcs', variantLabel: 'Finish',
     variants: [
       { label: 'Graphite', swatch: '#2B2B2B', img: pic('mymart-driver-graphite') },
       { label: 'Steel',    swatch: '#9AA3A8', img: pic('mymart-driver-steel') },
@@ -96,7 +96,7 @@ const PRODUCTS = [
   },
   {
     id: 'p08', name: 'Stovetop Espresso Maker', tags: ['home', 'grocery'],
-    priceTHB: 760, wasTHB: 990, inStock: true, unit: '300 ml', variantLabel: 'Size',
+    priceTHB: 760, inStock: true, unit: '300 ml', variantLabel: 'Size',
     variants: [
       { label: '3-cup', swatch: '#C8C8C8', img: pic('mymart-moka-3') },
       { label: '6-cup', swatch: '#8A8A8A', img: pic('mymart-moka-6') },
@@ -113,7 +113,7 @@ const PRODUCTS = [
   },
   {
     id: 'p10', name: 'Pulse Fitness Smartwatch', tags: ['electronics', 'accessories'],
-    priceTHB: 1990, wasTHB: 2590, inStock: true, unit: '1.4 in', variantLabel: 'Color',
+    priceTHB: 1990, inStock: true, unit: '1.4 in', variantLabel: 'Color',
     variants: [
       { label: 'Midnight', swatch: '#1B2430', img: pic('mymart-watch-midnight') },
       { label: 'Rose',     swatch: '#D98E8E', img: pic('mymart-watch-rose') },
@@ -129,7 +129,7 @@ const PRODUCTS = [
   },
   {
     id: 'p12', name: 'Everyday Merino Crew Socks (3-pack)', tags: ['apparel'],
-    priceTHB: 320, wasTHB: 420, inStock: true, unit: '3 pairs', variantLabel: 'Size',
+    priceTHB: 320, inStock: true, unit: '3 pairs', variantLabel: 'Size',
     variants: [
       { label: 'M', swatch: '#D8D8D8', img: pic('mymart-socks-m') },
       { label: 'L', swatch: '#B0B0B0', img: pic('mymart-socks-l') },
@@ -145,7 +145,7 @@ const PRODUCTS = [
   },
   {
     id: 'p14', name: 'Cascade Insulated Bottle 750ml', tags: ['accessories', 'home'],
-    priceTHB: 450, wasTHB: 590, inStock: true, unit: '750 ml', variantLabel: 'Color',
+    priceTHB: 450, inStock: true, unit: '750 ml', variantLabel: 'Color',
     variants: [
       { label: 'Glacier',  swatch: '#BCD6E0', img: pic('mymart-bottle-glacier') },
       { label: 'Coral',    swatch: '#E8765A', img: pic('mymart-bottle-coral') },
@@ -154,7 +154,7 @@ const PRODUCTS = [
   },
   {
     id: 'p15', name: 'Atlas Cordless Drill 18V', tags: ['tools'],
-    priceTHB: 2190, wasTHB: 2690, inStock: false, unit: '18 V', variantLabel: 'Color',
+    priceTHB: 2190, inStock: false, unit: '18 V', variantLabel: 'Color',
     variants: [
       { label: 'Yellow', swatch: '#F2B705', img: pic('mymart-drill-yellow') },
       { label: 'Blue',   swatch: '#1F5FA8', img: pic('mymart-drill-blue') },
@@ -171,7 +171,7 @@ const PRODUCTS = [
   },
   {
     id: 'p17', name: 'Pocket Power Bank 10000mAh', tags: ['electronics'],
-    priceTHB: 590, wasTHB: 790, inStock: true, unit: '10000 mAh', variantLabel: 'Color',
+    priceTHB: 590, inStock: true, unit: '10000 mAh', variantLabel: 'Color',
     variants: [
       { label: 'White', swatch: '#F0F0F0', img: pic('mymart-power-white') },
       { label: 'Black', swatch: '#1E1E1E', img: pic('mymart-power-black') },
