@@ -1,0 +1,204 @@
+// POS billing: create a bill (decrement stock + log SALE movements), list
+// history with filters, view one, and render a printable receipt.
+const express = require('express');
+const { prisma } = require('../db');
+const { requireAuth, requirePermission } = require('../middleware/auth');
+const { PERMISSIONS, hasPermission } = require('../config/permissions');
+const { isCurrency, minorToBaht } = require('../lib/currency');
+const { renderReceiptHtml } = require('../receipt/render');
+const v = require('../lib/validate');
+
+const router = express.Router();
+
+function serializeBill(b) {
+  return {
+    id: b.id,
+    billNo: b.billNo,
+    subtotalMinor: b.subtotalMinor,
+    subtotal: minorToBaht(b.subtotalMinor),
+    totalMinor: b.totalMinor,
+    total: minorToBaht(b.totalMinor),
+    currency: b.currency,
+    paymentMethod: b.paymentMethod,
+    customerName: b.customerName,
+    status: b.status,
+    staffId: b.staffId,
+    staff: b.staff ? { id: b.staff.id, name: b.staff.name, username: b.staff.username } : undefined,
+    createdAt: b.createdAt,
+    items: b.items?.map((it) => ({
+      id: it.id,
+      productId: it.productId,
+      name: it.nameSnapshot,
+      qty: it.qty,
+      unitPriceMinor: it.unitPriceMinor,
+      unitPrice: minorToBaht(it.unitPriceMinor),
+      lineTotalMinor: it.lineTotalMinor,
+      lineTotal: minorToBaht(it.lineTotalMinor),
+    })),
+  };
+}
+
+const nextBillNo = (count) => `B-${String(count + 1).padStart(5, '0')}`;
+
+// =============================================================================
+// Create a bill (the checkout). Stock is validated + decremented atomically.
+// =============================================================================
+router.post('/', requireAuth, requirePermission(PERMISSIONS.BILLS_CREATE), async (req, res, next) => {
+  try {
+    const body = req.body || {};
+    const currency = isCurrency(body.currency) ? body.currency : 'THB';
+    const paymentMethod = v.oneOf(body.paymentMethod || 'CASH', 'Payment method', ['CASH', 'OTHER']);
+    const customerName = v.optionalString(body.customerName, 'Customer name', { max: 120 });
+
+    if (!Array.isArray(body.items) || body.items.length === 0) {
+      throw v.badRequest('Add at least one item to the bill.');
+    }
+    // Collapse duplicate product lines and validate qty.
+    const wanted = new Map();
+    for (const raw of body.items) {
+      const productId = v.intNonNeg(raw.productId, 'Product');
+      const qty = v.intNonNeg(raw.qty, 'Quantity');
+      if (qty < 1) throw v.badRequest('Each item needs a quantity of at least 1.');
+      wanted.set(productId, (wanted.get(productId) || 0) + qty);
+    }
+
+    const bill = await prisma.$transaction(async (tx) => {
+      const ids = [...wanted.keys()];
+      const products = await tx.product.findMany({ where: { id: { in: ids } } });
+      const byId = new Map(products.map((p) => [p.id, p]));
+
+      const lineData = [];
+      let subtotalMinor = 0;
+      for (const [productId, qty] of wanted) {
+        const p = byId.get(productId);
+        if (!p || !p.isActive) throw v.badRequest(`Product #${productId} is unavailable.`);
+        if (p.stockQty < qty) throw v.badRequest(`Not enough stock for "${p.name}" (have ${p.stockQty}).`);
+        const lineTotalMinor = p.sellPriceMinor * qty;
+        subtotalMinor += lineTotalMinor;
+        lineData.push({
+          productId: p.id,
+          nameSnapshot: p.name,
+          qty,
+          unitPriceMinor: p.sellPriceMinor,
+          lineTotalMinor,
+        });
+      }
+
+      const count = await tx.bill.count();
+      const created = await tx.bill.create({
+        data: {
+          billNo: nextBillNo(count),
+          subtotalMinor,
+          totalMinor: subtotalMinor, // no discounts/tax in v1 (extension point)
+          currency,
+          paymentMethod,
+          customerName,
+          status: 'PAID',
+          staffId: req.user.id,
+          items: { create: lineData },
+        },
+        include: { items: true, staff: true },
+      });
+
+      // Decrement stock + record SALE movements.
+      for (const line of lineData) {
+        await tx.product.update({
+          where: { id: line.productId },
+          data: { stockQty: { decrement: line.qty } },
+        });
+        await tx.stockMovement.create({
+          data: {
+            productId: line.productId,
+            type: 'SALE',
+            qty: -line.qty,
+            reason: created.billNo,
+            staffId: req.user.id,
+            billId: created.id,
+          },
+        });
+      }
+      return created;
+    });
+
+    res.status(201).json({ bill: serializeBill(bill) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// =============================================================================
+// History list — filter by date range + staff. Staff role is scoped to own.
+// =============================================================================
+router.get('/', requireAuth, async (req, res, next) => {
+  try {
+    if (!hasPermission(req.user.role, PERMISSIONS.BILLS_READ) &&
+        !hasPermission(req.user.role, PERMISSIONS.BILLS_READ_OWN)) {
+      return res.status(403).json({ error: 'You do not have permission to view bills.' });
+    }
+    const where = {};
+    const { from, to, staffId } = req.query;
+    if (from || to) {
+      where.createdAt = {};
+      if (from) where.createdAt.gte = new Date(`${from}T00:00:00`);
+      if (to) where.createdAt.lte = new Date(`${to}T23:59:59.999`);
+    }
+    // Staff without the "read all" permission only ever see their own bills.
+    if (!hasPermission(req.user.role, PERMISSIONS.BILLS_READ)) {
+      where.staffId = req.user.id;
+    } else if (staffId) {
+      where.staffId = Number(staffId);
+    }
+
+    const bills = await prisma.bill.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: 500,
+      include: { staff: { select: { id: true, name: true, username: true } }, items: true },
+    });
+    res.json({ bills: bills.map(serializeBill) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+async function loadBillForRequest(req) {
+  const bill = await prisma.bill.findUnique({
+    where: { id: Number(req.params.id) },
+    include: { items: true, staff: true },
+  });
+  if (!bill) return { error: 404 };
+  // Staff scoped to own bills.
+  if (!hasPermission(req.user.role, PERMISSIONS.BILLS_READ) && bill.staffId !== req.user.id) {
+    return { error: 403 };
+  }
+  return { bill };
+}
+
+router.get('/:id', requireAuth, async (req, res, next) => {
+  try {
+    const { bill, error } = await loadBillForRequest(req);
+    if (error === 404) return res.status(404).json({ error: 'Bill not found.' });
+    if (error === 403) return res.status(403).json({ error: 'You can only view your own bills.' });
+    res.json({ bill: serializeBill(bill) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Printable receipt (HTML) — sized to the default printer; opens print dialog.
+router.get('/:id/receipt', requireAuth, requirePermission(PERMISSIONS.PRINTERS_READ), async (req, res, next) => {
+  try {
+    const { bill, error } = await loadBillForRequest(req);
+    if (error === 404) return res.status(404).send('Bill not found.');
+    if (error === 403) return res.status(403).send('You can only print your own bills.');
+    const printer =
+      (await prisma.printerSetting.findFirst({ where: { isDefault: true } })) ||
+      (await prisma.printerSetting.findFirst());
+    res.set('Content-Type', 'text/html; charset=utf-8');
+    res.send(renderReceiptHtml(bill, printer, { autoPrint: req.query.print === '1' }));
+  } catch (err) {
+    next(err);
+  }
+});
+
+module.exports = router;

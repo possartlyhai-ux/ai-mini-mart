@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ai Mini-Mart — Staff</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <!-- ============ LOGIN ============ -->
+  <div id="login" class="login" hidden>
+    <form id="login-form" class="login-card">
+      <div class="login-brand">🛒 Ai&nbsp;Mini-Mart</div>
+      <div class="login-sub">Staff &amp; POS sign-in</div>
+      <label>Username<input name="username" autocomplete="username" required /></label>
+      <label>Password<input name="password" type="password" autocomplete="current-password" required /></label>
+      <button type="submit" class="btn btn-primary btn-block">Sign in</button>
+      <p id="login-error" class="error" hidden></p>
+      <p class="login-hint">Seed logins — owner / Owner@123 · staff / Staff@123</p>
+    </form>
+  </div>
+
+  <!-- ============ APP SHELL ============ -->
+  <div id="app" class="app" hidden>
+    <header class="topbar">
+      <button id="nav-toggle" class="icon-btn" aria-label="Menu">☰</button>
+      <div class="brand">🛒 Ai Mini-Mart <span class="brand-tag">Staff</span></div>
+      <div class="spacer"></div>
+      <div id="whoami" class="whoami"></div>
+      <button id="logout" class="btn btn-ghost">Sign out</button>
+    </header>
+
+    <div class="layout">
+      <nav id="sidenav" class="sidenav">
+        <a data-route="pos" class="navlink" data-perm="bills:create">🧾 Make Bill</a>
+        <a data-route="products" class="navlink" data-perm="products:read">📦 Products</a>
+        <a data-route="bills" class="navlink" data-perm="bills:read:own">🗂️ Bill History</a>
+        <a data-route="reports" class="navlink" data-perm="reports:read">📊 Reports</a>
+        <a data-route="staff" class="navlink" data-perm="staff:manage">👥 Staff</a>
+        <a data-route="printers" class="navlink" data-perm="printers:read">🖨️ Printer</a>
+      </nav>
+      <main id="view" class="view"></main>
+    </div>
+  </div>
+
+  <!-- ============ MODAL + TOAST ============ -->
+  <div id="modal-root" class="modal-root" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal" role="dialog" aria-modal="true">
+      <div class="modal-head">
+        <h3 id="modal-title"></h3>
+        <button class="icon-btn" data-close aria-label="Close">✕</button>
+      </div>
+      <div id="modal-body" class="modal-body"></div>
+    </div>
+  </div>
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>

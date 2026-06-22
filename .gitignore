@@ -13,3 +13,6 @@ Thumbs.db
 # Local Claude Code settings (personal, machine-specific)
 .claude/settings.local.json
 .claude/launch.json
+
+# Firebase deploy cache (local artifact, not source)
+.firebase/

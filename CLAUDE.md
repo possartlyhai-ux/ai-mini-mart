@@ -6,6 +6,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Ai Mini-Mart — a single-page retail storefront (browse → cart → checkout → client-side PDF order sheet for staff). Plain HTML + CSS + vanilla JS, **no build step, no framework, no package dependencies**. The brand display name is "Ai Mini-Mart"; code identifiers and the localStorage namespace still use `mymart`/`my-mart`.
 
+This file documents **the storefront** (everything at the repo root). The separate staff-facing
+**backend + admin/POS** app lives in [`backend/`](backend/) (Express + Prisma/SQLite) and has its own
+[`backend/CLAUDE.md`](backend/CLAUDE.md) — read that when working there. The backend is built to feed
+this storefront (its `GET /api/storefront/products` mirrors the `data.js` shape exactly) but **does not
+modify these root files**; treat the two as independent apps.
+
 ## Commands
 
 ```bash

@@ -1,0 +1,122 @@
+// Ai Mini-Mart — staff/POS backend schema.
+//
+// DB is SQLite for zero-setup local dev. To move to Postgres later, change the
+// datasource `provider` to "postgresql" and point DATABASE_URL at the server —
+// no model changes are required (enums are modelled as documented String fields
+// precisely so SQLite and Postgres share one schema).
+//
+// MONEY: every *Minor field is an INTEGER in THB minor units (satang = baht*100)
+// for decimal-safe arithmetic. Convert/format via src/lib/currency.js.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  name         String
+  username     String   @unique
+  passwordHash String
+  role         String   @default("STAFF") // "OWNER" | "STAFF"
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  bills     Bill[]
+  movements StockMovement[]
+}
+
+model Product {
+  id                Int      @id @default(autoincrement())
+  name              String
+  sku               String?  @unique
+  barcode           String?  @unique
+  imageUrl          String?
+  costPriceMinor    Int      @default(0)
+  sellPriceMinor    Int      @default(0)
+  comparePriceMinor Int? // storefront `wasTHB` (struck-through price); display-only, no promo logic
+  stockQty          Int      @default(0)
+  lowStockThreshold Int      @default(5)
+  isVisible         Boolean  @default(true) // "Show in store" toggle -> storefront feed
+  isActive          Boolean  @default(true) // soft delete / retire
+  unit              String? // e.g. "250 g", "1 pair"
+  variantLabel      String? // e.g. "Color", "Size"
+  variantsJson      String   @default("[]") // JSON: [{ label, swatch, img }]
+  tagsJson          String   @default("[]") // JSON: ["electronics", ...] (category ids)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  movements StockMovement[]
+  billItems BillItem[]
+}
+
+model StockMovement {
+  id        Int      @id @default(autoincrement())
+  productId Int
+  type      String // "IN" | "OUT" | "ADJUST" | "SALE"
+  qty       Int // signed: positive adds stock, negative removes
+  reason    String?
+  staffId   Int?
+  billId    Int?
+  createdAt DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id])
+  staff   User?   @relation(fields: [staffId], references: [id])
+  bill    Bill?   @relation(fields: [billId], references: [id])
+
+  @@index([productId])
+  @@index([createdAt])
+}
+
+model Bill {
+  id            Int      @id @default(autoincrement())
+  billNo        String   @unique // e.g. "B-00001"
+  subtotalMinor Int
+  totalMinor    Int
+  currency      String   @default("THB") // display currency chosen at sale time
+  paymentMethod String   @default("CASH") // "CASH" | "OTHER"
+  customerName  String?
+  status        String   @default("PAID") // "PAID" | "VOID"
+  staffId       Int
+  createdAt     DateTime @default(now())
+
+  staff     User            @relation(fields: [staffId], references: [id])
+  items     BillItem[]
+  movements StockMovement[]
+
+  @@index([createdAt])
+  @@index([staffId])
+}
+
+model BillItem {
+  id             Int    @id @default(autoincrement())
+  billId         Int
+  productId      Int? // nullable so history survives product deletion
+  nameSnapshot   String
+  qty            Int
+  unitPriceMinor Int
+  lineTotalMinor Int
+
+  bill    Bill     @relation(fields: [billId], references: [id])
+  product Product? @relation(fields: [productId], references: [id])
+
+  @@index([billId])
+  @@index([productId])
+}
+
+model PrinterSetting {
+  id         Int      @id @default(autoincrement())
+  name       String
+  paperWidth String   @default("80mm") // "58mm" | "80mm" | "A4"
+  type       String   @default("thermal") // "thermal" | "normal"
+  headerText String?
+  footerText String?
+  isDefault  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
