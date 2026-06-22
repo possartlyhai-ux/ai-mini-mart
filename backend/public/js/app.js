@@ -350,6 +350,17 @@ async function renderProducts(view) {
 
 const fmtKhr = (riel) => `${Number(riel || 0).toLocaleString('en-US')} ៛`;
 
+// Eye on/off icons for the "In store" visibility toggle (green = shown, red = hidden).
+function eyeSvg(open) {
+  return open
+    ? `<svg viewBox="0 0 16 16" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M10.5 8a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0"/><path d="M0 8s3-5.5 8-5.5S16 8 16 8s-3 5.5-8 5.5S0 8 0 8m8 3.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7"/></svg>`
+    : `<svg viewBox="0 0 16 16" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="m10.79 12.912-1.614-1.615a3.5 3.5 0 0 1-4.474-4.474l-2.06-2.06C.938 6.278 0 8 0 8s3 5.5 8 5.5a7 7 0 0 0 2.79-.588M5.21 3.088A7 7 0 0 1 8 2.5c5 0 8 5.5 8 5.5s-.939 1.721-2.641 3.238l-2.062-2.062a3.5 3.5 0 0 0-4.474-4.474z"/><path d="M5.525 7.646a2.5 2.5 0 0 0 2.829 2.829zm4.95.708-2.829-2.83a2.5 2.5 0 0 1 2.829 2.829zm3.171 6-12-12 .708-.708 12 12z"/></svg>`;
+}
+function eyeToggle(id, isVisible) {
+  const title = isVisible ? 'Shown in store — click to hide' : 'Hidden from store — click to show';
+  return `<button type="button" class="eye-btn ${isVisible ? 'on' : 'off'}" data-vis="${id}" title="${title}" aria-label="${title}">${eyeSvg(isVisible)}</button>`;
+}
+
 function drawProducts(products, { reorderable = false, reload = () => go('products') } = {}) {
   const canWrite = can('products:write');
   const canDrag = reorderable && canWrite;
@@ -360,20 +371,21 @@ function drawProducts(products, { reorderable = false, reload = () => go('produc
   // One <tbody> per product (so its variant rows drag together as a group).
   wrap.innerHTML = `
     <table><thead><tr>
-      <th></th><th></th><th>Item / Variant</th><th>Type</th><th class="num">Price</th>
+      <th class="drag-col"></th><th>Item / Variant</th><th class="num">Price</th>
       <th>Barcode</th><th>In stock</th><th>In store</th><th></th>
     </tr></thead>
     ${products.map((p) => `
       <tbody class="prod-group" data-id="${p.id}" ${canDrag ? 'draggable="true"' : ''}>
         <tr class="prod-row">
-          <td class="drag-handle" aria-disabled="${!canDrag}" title="${handleTitle}">⠿</td>
-          <td><img class="thumb" src="${esc(p.imageUrl || '')}" onerror="this.style.visibility='hidden'"/></td>
-          <td><strong>${esc(p.name)}</strong><br/><small class="muted">${p.tags.map((t) => `<span class="tag-chip">${esc(t)}</span>`).join('')}</small></td>
-          <td>${esc(p.unit || '')}</td>
+          <td class="drag-handle" aria-disabled="${!canDrag}" title="${handleTitle}"><span class="grip">⠿</span></td>
+          <td><div class="item-cell">
+            <img class="thumb" src="${esc(p.imageUrl || '')}" onerror="this.style.visibility='hidden'"/>
+            <div><strong>${esc(p.name)}</strong><br/><small class="muted">${p.tags.map((t) => `<span class="tag-chip">${esc(t)}</span>`).join('')}</small></div>
+          </div></td>
           <td></td><td></td><td></td>
           <td>${can('storefront:toggle')
-            ? `<label class="switch"><input type="checkbox" data-vis="${p.id}" ${p.isVisible ? 'checked' : ''}/><span class="slider"></span></label>`
-            : `<span class="badge ${p.isVisible ? 'in' : 'muted'}">${p.isVisible ? 'on' : 'off'}</span>`}</td>
+            ? eyeToggle(p.id, p.isVisible)
+            : `<span class="eye-btn ${p.isVisible ? 'on' : 'off'}" aria-disabled="true">${eyeSvg(p.isVisible)}</span>`}</td>
           <td><div class="row-actions">
             ${canWrite ? `<button class="btn btn-sm" data-edit="${p.id}">Edit</button>` : ''}
             ${can('products:delete') ? `<button class="btn btn-sm btn-danger" data-del="${p.id}">Del</button>` : ''}
@@ -382,9 +394,10 @@ function drawProducts(products, { reorderable = false, reload = () => go('produc
         ${(p.variants || []).map((vr) => `
           <tr class="var-row">
             <td></td>
-            <td><img class="thumb sm" src="${esc(vr.imageUrl || '')}" onerror="this.style.visibility='hidden'"/></td>
-            <td class="var-name">↳ ${esc(vr.name)}</td>
-            <td></td>
+            <td><div class="item-cell var-name">
+              <img class="thumb sm" src="${esc(vr.imageUrl || '')}" onerror="this.style.visibility='hidden'"/>
+              <span>${esc(vr.name)}</span>
+            </div></td>
             <td class="num">${fmtMinor(vr.sellPriceMinor, 'THB')}<br/><small class="muted">${fmtKhr(vr.sellPriceKhr)}</small></td>
             <td><small class="muted">${esc(vr.barcode || '—')}</small></td>
             <td>${canWrite
@@ -402,9 +415,16 @@ function drawProducts(products, { reorderable = false, reload = () => go('produc
     };
   });
   wrap.querySelectorAll('[data-vis]').forEach((el) => {
-    el.onchange = async () => {
-      try { await API.patch(`/products/${el.dataset.vis}/visibility`, { isVisible: el.checked }); toast('Visibility updated'); }
-      catch (err) { toast(err.message, 'err'); el.checked = !el.checked; }
+    el.onclick = async () => {
+      const next = !el.classList.contains('on');
+      el.classList.toggle('on', next); el.classList.toggle('off', !next);
+      el.innerHTML = eyeSvg(next);
+      el.title = next ? 'Shown in store — click to hide' : 'Hidden from store — click to show';
+      try { await API.patch(`/products/${el.dataset.vis}/visibility`, { isVisible: next }); toast(next ? 'Shown in store' : 'Hidden from store'); }
+      catch (err) {
+        toast(err.message, 'err');
+        el.classList.toggle('on', !next); el.classList.toggle('off', next); el.innerHTML = eyeSvg(!next);
+      }
     };
   });
   wrap.querySelectorAll('[data-edit]').forEach((el) => (el.onclick = async () => {

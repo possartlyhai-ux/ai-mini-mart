@@ -114,8 +114,12 @@ td.num, th.num { text-align: right; }
 .switch input:checked + .slider::before { transform: translateX(18px); }
 
 /* ---- drag-to-reorder (product groups = <tbody>) ---- */
-.drag-handle { cursor: grab; color: var(--muted); font-size: 1.1rem; user-select: none; padding: 0 .2rem;
-  text-align: center; }
+th.drag-col, td.drag-handle { width: 44px; }
+.drag-handle { cursor: grab; color: var(--muted); user-select: none; padding: 0; text-align: center; }
+.drag-handle .grip { display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; min-height: 46px; font-size: 1.7rem; line-height: 1; letter-spacing: .05em;
+  border-radius: 7px; transition: background .12s; }
+.drag-handle:not([aria-disabled="true"]) .grip:hover { background: var(--line); }
 .drag-handle[aria-disabled="true"] { opacity: .3; cursor: not-allowed; }
 tbody.prod-group { border-bottom: 2px solid var(--line); }
 tbody.prod-group.dragging { opacity: .5; }
@@ -124,6 +128,16 @@ tr.prod-row td { border-bottom: none; vertical-align: middle; }
 tr.var-row td { padding-top: .3rem; padding-bottom: .3rem; }
 tr.var-row .var-name { color: var(--muted); }
 .thumb.sm { width: 26px; height: 26px; }
+.item-cell { display: flex; align-items: center; gap: .55rem; }
+
+/* ---- eye on/off visibility toggle ---- */
+.eye-btn { display: inline-flex; align-items: center; justify-content: center; padding: .25rem;
+  border: none; background: none; cursor: pointer; line-height: 0; border-radius: 7px; transition: background .12s; }
+.eye-btn:hover { background: var(--line); }
+.eye-btn.on { color: var(--green); }
+.eye-btn.off { color: var(--red); }
+.eye-btn[aria-disabled="true"] { cursor: default; }
+.eye-btn[aria-disabled="true"]:hover { background: none; }
 
 /* ---- variant editor (each variant is its own SKU) ---- */
 .variants { display: flex; flex-direction: column; gap: .6rem; }
