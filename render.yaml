@@ -33,5 +33,7 @@ services:
         generateValue: true
       - key: CORS_ORIGIN
         sync: false # set to the storefront URL after the storefront is deployed
+      - key: CLOUDINARY_URL
+        sync: false # cloudinary://<key>:<secret>@<cloud_name> — durable image uploads
       - key: NODE_VERSION
         value: "20"

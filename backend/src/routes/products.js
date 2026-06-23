@@ -21,21 +21,39 @@ async function categorySlugs() {
 const router = express.Router();
 const withVariants = { variants: { orderBy: { sortOrder: 'asc' } } };
 
-// ---- image upload (local /uploads) ------------------------------------------
+// ---- image upload -----------------------------------------------------------
+// Files are held in memory, then pushed to Cloudinary (durable, when
+// CLOUDINARY_URL is set) or written to the local /uploads dir (dev fallback).
+// Render's free disk is ephemeral, so durable uploads require Cloudinary in prod.
 const UPLOAD_DIR = path.join(__dirname, '..', '..', 'uploads');
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase().replace(/[^.a-z0-9]/g, '') || '.img';
-    cb(null, `p_${Date.now()}_${Math.round(Math.random() * 1e6)}${ext}`);
-  },
-});
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 4 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => cb(null, /^image\//.test(file.mimetype)),
 });
+
+// Cloudinary auto-configures from the CLOUDINARY_URL env var when present.
+const cloudinary = require('cloudinary').v2;
+const CLOUDINARY_ON = !!cloudinary.config().cloud_name;
+
+// Persist one uploaded file, returning its URL. Cloudinary => absolute https URL
+// (works cross-origin on the storefront); local fallback => relative /uploads path.
+function storeImage(file) {
+  if (CLOUDINARY_ON) {
+    return new Promise((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        { folder: 'ai-mini-mart', resource_type: 'image' },
+        (err, result) => (err ? reject(err) : resolve(result.secure_url))
+      );
+      stream.end(file.buffer);
+    });
+  }
+  const ext = path.extname(file.originalname).toLowerCase().replace(/[^.a-z0-9]/g, '') || '.img';
+  const name = `p_${Date.now()}_${Math.round(Math.random() * 1e6)}${ext}`;
+  fs.writeFileSync(path.join(UPLOAD_DIR, name), file.buffer);
+  return Promise.resolve(`/uploads/${name}`);
+}
 
 // ---- helpers ----------------------------------------------------------------
 function parseTags(value, allowedSlugs) {
@@ -148,10 +166,11 @@ router.post(
   requireAuth,
   requirePermission(PERMISSIONS.PRODUCTS_WRITE),
   upload.single('image'),
-  (req, res, next) => {
+  async (req, res, next) => {
     try {
       if (!req.file) throw v.badRequest('No image file received.');
-      res.json({ imageUrl: `/uploads/${req.file.filename}` });
+      const imageUrl = await storeImage(req.file);
+      res.json({ imageUrl });
     } catch (err) {
       next(err);
     }

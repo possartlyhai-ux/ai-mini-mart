@@ -77,6 +77,20 @@ CORS_ORIGIN = https://ai-mini-mart.web.app,https://ai-mini-mart.firebaseapp.com
 
 Save (the service redeploys). The storefront feed now loads cross-origin.
 
+## 6. Durable image uploads (Cloudinary)
+
+Render's disk is ephemeral, so staff-uploaded images (product photos, category
+banners, printer logos) vanish on redeploy unless stored externally.
+
+1. Sign up free at [cloudinary.com](https://cloudinary.com).
+2. Dashboard → copy the **API environment variable**:
+   `cloudinary://<api_key>:<api_secret>@<cloud_name>`.
+3. Render → `ai-mini-mart-api` → Environment → set **`CLOUDINARY_URL`** to that value → Save (redeploys).
+
+Now uploads go to Cloudinary and return permanent `https://res.cloudinary.com/...`
+URLs (stored in the DB, shown on the storefront). Without `CLOUDINARY_URL` the
+app silently falls back to the local `./uploads` dir (fine for local dev).
+
 ---
 
 ## Local development after the Postgres switch
