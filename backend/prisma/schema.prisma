@@ -90,10 +90,10 @@ model Bill {
   paymentMethod String   @default("CASH") // "CASH" | "OTHER"
   customerName  String?
   status        String   @default("PAID") // "PAID" | "VOID"
-  staffId       Int
+  staffId       Int?     // nullable so a staff account can be deleted without losing bill history
   createdAt     DateTime @default(now())
 
-  staff User       @relation(fields: [staffId], references: [id])
+  staff User?      @relation(fields: [staffId], references: [id], onDelete: SetNull)
   items BillItem[]
 
   @@index([createdAt])

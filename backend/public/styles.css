@@ -91,7 +91,11 @@ h1, h2, h3 { margin: 0 0 .4rem; font-family: var(--font-ui); letter-spacing: -.0
 .topbar { display: flex; align-items: center; gap: .75rem; background: var(--chrome); color: var(--chrome-ink);
   border-bottom: 1px solid var(--chrome-line); padding: .6rem 1rem; position: sticky; top: 0; z-index: 20; }
 .topbar .icon-btn { color: var(--chrome-ink); }
-.brand { font-family: var(--font-ui); font-weight: 700; letter-spacing: -.01em; }
+.brand { font-family: var(--font-ui); font-weight: 700; letter-spacing: -.01em; display: inline-flex; align-items: center; gap: .5rem; }
+/* logo image (admin login + topbar); hidden via onerror until the file exists */
+.brand-logo { height: 28px; width: auto; border-radius: 6px; vertical-align: middle; }
+.brand-logo--lg { height: 44px; }
+.login-brand { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; }
 .brand-tag { font-family: var(--font-mono); font-size: .65rem; background: var(--primary); color: var(--primary-ink);
   padding: .12rem .4rem; border-radius: 6px; vertical-align: middle; font-weight: 700; text-transform: uppercase;
   letter-spacing: .04em; }

@@ -20,10 +20,18 @@ const publicUser = (u) => ({
 
 router.use(requireAuth, requirePermission(PERMISSIONS.STAFF_MANAGE));
 
+// The "first Owner" (earliest account) is the primary account — it can never be
+// deleted, so the UI can hide its delete button.
+async function firstOwnerId() {
+  const o = await prisma.user.findFirst({ where: { role: ROLES.OWNER }, orderBy: { id: 'asc' } });
+  return o ? o.id : null;
+}
+
 router.get('/', async (_req, res, next) => {
   try {
     const users = await prisma.user.findMany({ orderBy: { createdAt: 'asc' } });
-    res.json({ staff: users.map(publicUser) });
+    const primaryId = await firstOwnerId();
+    res.json({ staff: users.map((u) => ({ ...publicUser(u), isPrimary: u.id === primaryId })) });
   } catch (err) {
     next(err);
   }
@@ -66,6 +74,22 @@ router.patch('/:id', async (req, res, next) => {
     res.json({ user: publicUser(user) });
   } catch (err) {
     next(translateUnique(err));
+  }
+});
+
+// Hard-delete a staff account. The primary (first) Owner is protected, and you
+// can't delete your own account. Bills keep their history (staffId -> null).
+router.delete('/:id', async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    const target = await prisma.user.findUnique({ where: { id } });
+    if (!target) return res.status(404).json({ error: 'Staff not found.' });
+    if (id === req.user.id) throw v.badRequest('You cannot delete your own account.');
+    if (id === (await firstOwnerId())) throw v.badRequest('The primary Owner account cannot be deleted.');
+    await prisma.user.delete({ where: { id } });
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
   }
 });
 

@@ -4,13 +4,14 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Ai Mini-Mart — Staff</title>
+  <link rel="icon" type="image/png" href="/assets/logo.png" />
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
   <!-- ============ LOGIN ============ -->
   <div id="login" class="login" hidden>
     <form id="login-form" class="login-card">
-      <div class="login-brand">🛒 Ai&nbsp;Mini-Mart</div>
+      <div class="login-brand"><img class="brand-logo brand-logo--lg" src="/assets/logo.png" alt="" onerror="this.remove()" /> Ai&nbsp;Mini-Mart</div>
       <div class="login-sub">Staff &amp; POS sign-in</div>
       <label>Username<input name="username" autocomplete="username" required /></label>
       <label>Password<input name="password" type="password" autocomplete="current-password" required /></label>
@@ -23,7 +24,7 @@
   <div id="app" class="app" hidden>
     <header class="topbar">
       <button id="nav-toggle" class="icon-btn" aria-label="Menu">☰</button>
-      <div class="brand">🛒 Ai Mini-Mart <span class="brand-tag">Staff</span></div>
+      <div class="brand"><img class="brand-logo" src="/assets/logo.png" alt="" onerror="this.remove()" /> Ai Mini-Mart <span class="brand-tag">Staff</span></div>
       <div class="spacer"></div>
       <div id="whoami" class="whoami"></div>
     </header>

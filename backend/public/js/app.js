@@ -926,8 +926,18 @@ async function renderStaff(view) {
       <tbody>${staff.map((s) => `
         <tr><td>${esc(s.name)}</td><td>${esc(s.username)}</td><td><span class="badge ${s.role === 'OWNER' ? 'in' : 'muted'}">${esc(s.role)}</span></td>
         <td><span class="badge ${s.active ? 'in' : 'out'}">${s.active ? 'active' : 'inactive'}</span></td>
-        <td><div class="row-actions"><button class="btn btn-sm" data-edit="${s.id}">Edit</button></div></td></tr>`).join('')}</tbody></table>`;
+        <td><div class="row-actions"><button class="btn btn-sm" data-edit="${s.id}">Edit</button>${
+          s.isPrimary
+            ? '<span class="badge muted" title="The first Owner cannot be deleted">primary</span>'
+            : `<button class="btn btn-sm btn-danger" data-sdel="${s.id}">Delete</button>`
+        }</div></td></tr>`).join('')}</tbody></table>`;
     $$('[data-edit]', $('#s-table', view)).forEach((el) => (el.onclick = () => staffForm(staff.find((x) => x.id === Number(el.dataset.edit)), load)));
+    $$('[data-sdel]', $('#s-table', view)).forEach((el) => (el.onclick = async () => {
+      const u = staff.find((x) => x.id === Number(el.dataset.sdel));
+      if (!confirm(`Delete staff "${u.name}" (${u.username})? This cannot be undone. Their past bills are kept.`)) return;
+      try { await API.del(`/staff/${u.id}`); toast('Staff deleted'); load(); }
+      catch (err) { toast(err.message, 'err'); }
+    }));
   };
   $('#add-staff', view).onclick = () => staffForm(null, load);
   load();
