@@ -16,7 +16,7 @@ const LS = {
 /* ---------------- App state ---------------- */
 const state = {
   lang:      LS.get('lang', 'en'),
-  currency:  LS.get('currency', 'THB'),
+  currency:  LS.get('currency', 'KHR'),
   theme:     LS.get('theme', 'light'),
   cart:      LS.get('cart', {}),            // { lineKey: { id, variant, qty } }
   favorites: LS.get('favorites', []),       // [productId]
@@ -144,7 +144,7 @@ function startRotation() {
         updateDots(card, frames[id]);
       }, i * 110);
     });
-  }, 3000);
+  }, 4000);
 }
 
 function renderGrid() {
@@ -155,6 +155,7 @@ function renderGrid() {
   $('#view-title').textContent = state.favView ? t('favorites')
     : state.category === 'all' ? t('all') : t('cat_' + state.category);
   $('#result-count').textContent = list.length;
+  renderBanner(list.length);
 
   // Empty state
   const empty = $('#empty');
@@ -238,6 +239,43 @@ function fallbackImg(id) {
     <text x='50%' y='320' font-family='sans-serif' font-size='168' text-anchor='middle' dominant-baseline='central'>${icon}</text>
   </svg>`;
   return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+}
+
+/* =========================================================================
+ * RENDER: category banner
+ * -------------------------------------------------------------------------
+ * A full-width hero strip atop the grid that changes per category — gradient
+ * keyed to the category colour, its icon, name, and live product count.
+ * ========================================================================= */
+const CAT_BANNER = {
+  electronics: ['#3B82F6', '#1D4ED8'],
+  home:        ['#10B981', '#047857'],
+  apparel:     ['#8B5CF6', '#6D28D9'],
+  accessories: ['#F59E0B', '#B45309'],
+  tools:       ['#EF4444', '#B91C1C'],
+  grocery:     ['#14B8A6', '#0F766E'],
+};
+function renderBanner(count) {
+  const el = $('#banner');
+  if (!el) return;
+  let title, icon, pal;
+  if (state.favView) {
+    title = t('favorites'); icon = '♥'; pal = ['#F43F5E', '#BE123C'];
+  } else if (state.category === 'all') {
+    title = t('all'); icon = '🛍️'; pal = ['#FF8A00', '#F97316'];
+  } else {
+    title = t('cat_' + state.category);
+    icon = (CATEGORIES.find(c => c.id === state.category) || {}).icon || '🛍️';
+    pal = CAT_BANNER[state.category] || ['#FF8A00', '#F97316'];
+  }
+  el.style.setProperty('--bn-1', pal[0]);
+  el.style.setProperty('--bn-2', pal[1]);
+  el.innerHTML = `
+    <span class="banner__icon" aria-hidden="true">${icon}</span>
+    <span class="banner__text">
+      <span class="banner__title">${title}</span>
+      <span class="banner__sub">${count} ${t('results_count')}</span>
+    </span>`;
 }
 
 /* =========================================================================
@@ -430,6 +468,11 @@ function showDrawerView(view) {
   $('#cta-cart').hidden = view !== 'cart';
   $('#cta-checkout').hidden = view !== 'checkout';
   $('#drawer-title').textContent = view === 'checkout' ? t('checkout_title') : t('your_order');
+  // Prefill the name from the signed-in Google account (only if still blank).
+  if (view === 'checkout' && typeof auth !== 'undefined' && auth.user) {
+    const nm = $('#view-checkout').name;
+    if (nm && !nm.value) nm.value = auth.user.name || '';
+  }
 }
 
 /* =========================================================================
@@ -775,13 +818,21 @@ function buildOrder() {
   const data = Object.fromEntries(new FormData(form).entries());
   const err = $('#form-error');
 
-  if (!data.name?.trim()) { err.hidden = false; form.name.focus(); return null; }
+  if (!data.name?.trim()) {
+    // Surface the warning and replay the shake so a repeat click re-pulses it.
+    err.hidden = false;
+    err.classList.remove('shake');
+    void err.offsetWidth;               // force reflow so the animation restarts
+    err.classList.add('shake');
+    form.name.focus();
+    return null;
+  }
   err.hidden = true;
+  err.classList.remove('shake');
 
   const now = new Date();
   return {
-    id: 'MM-' + now.getFullYear() + String(now.getMonth() + 1).padStart(2, '0') +
-        String(now.getDate()).padStart(2, '0') + '-' + Math.floor(1000 + Math.random() * 9000),
+    id: nextOrderId(),
     // Force en-US so the printed date stays Latin (some locales render non-Latin
     // numerals / Buddhist era that Helvetica can't draw — same issue as labels).
     dateStr: now.toLocaleString('en-US'),
@@ -791,11 +842,23 @@ function buildOrder() {
     items: cartEntries().map(({ product, variant, qty }) => {
       const v = product.variants.find(x => x.label === variant) || product.variants[0];
       return {
-        name: variant ? `${product.name} (${variant})` : product.name,
+        name: product.name,
+        variant: variant || '',          // kept separate so the PDF prints it on its own line
         qty, unitTHB: product.priceTHB, img: v.img, swatch: v.swatch,
       };
     }),
   };
+}
+
+// Sequential order id: "MM-100001", "MM-100002", … persisted in localStorage so
+// numbers keep running across visits. Starts the counter at 100000 so the first
+// real order is MM-100001.
+function nextOrderId() {
+  let n = parseInt(LS.get('orderseq', 100000), 10);
+  if (!Number.isFinite(n)) n = 100000;
+  n += 1;
+  LS.set('orderseq', n);
+  return 'MM-' + n;
 }
 
 function finalizeOrder(bodyKey) {
@@ -842,7 +905,7 @@ async function shareOrder() {
 function init() {
   // Guard against stale localStorage: USD was removed, and the cart format
   // changed from { id: qty } to { lineKey: {id, variant, qty} }.
-  if (!CURRENCIES[state.currency]) state.currency = 'THB';
+  if (!CURRENCIES[state.currency]) state.currency = 'KHR';
   if (Object.values(state.cart).some(v => typeof v !== 'object' || v === null)) state.cart = {};
 
   document.documentElement.setAttribute('data-theme', state.theme);

@@ -16,13 +16,15 @@
 
 // Units of the target currency per 1 THB (base). THB is always 1.
 const RATES = {
-  THB: 1,
-  KHR: 114,      // ~1 THB ≈ 114 Riel
+  KHR: 114,      // ~1 THB ≈ 114 Riel — primary currency
+  THB: 1,        // base
 };
 
+// KHR is the primary/default currency, THB is secondary. Menu order follows
+// this object's key order. THB shows no decimals (whole baht only).
 const CURRENCIES = {
-  THB: { symbol: '฿', decimals: 2, position: 'before', label: 'Thai Baht' },
   KHR: { symbol: '៛', decimals: 0, position: 'after',  label: 'Khmer Riel' },
+  THB: { symbol: '฿', decimals: 0, position: 'before', label: 'Thai Baht' },
 };
 
 /**

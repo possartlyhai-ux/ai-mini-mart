@@ -36,6 +36,51 @@ function pdfSwatchTile(color) {
   ctx.fillStyle = g; ctx.fillRect(0, 0, 96, 96);
   return c.toDataURL('image/jpeg', 0.8);
 }
+// Load the storefront logo (same-origin → canvas stays untainted) as a PNG
+// dataURL, keeping its real aspect ratio. Resolves null if it can't be read so
+// the header gracefully falls back to text only.
+function pdfLoadLogo() {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (v) => { if (!settled) { settled = true; resolve(v); } };
+    const timer = setTimeout(() => finish(null), 2500);
+    const img = new Image();
+    img.onload = () => {
+      clearTimeout(timer);
+      try {
+        const c = document.createElement('canvas');
+        c.width = img.naturalWidth; c.height = img.naturalHeight;
+        c.getContext('2d').drawImage(img, 0, 0);
+        finish({ data: c.toDataURL('image/png'), w: img.naturalWidth, h: img.naturalHeight });
+      } catch (e) { finish(null); }
+    };
+    img.onerror = () => { clearTimeout(timer); finish(null); };
+    img.src = 'assets/logo.png';
+  });
+}
+
+/* Render text to a transparent PNG via the browser's own fonts, so currency
+ * SYMBOLS (฿ / ៛) print correctly — jsPDF's Helvetica is WinAnsi and garbles
+ * them. Returned {data,w,h} are in CSS px; callers scale to mm by aspect. */
+function pdfTextImage(text, color) {
+  const scale = 4, fontPx = 36, padX = 6;
+  const font = `900 ${fontPx}px "Noto Sans Thai","Noto Sans Khmer","Plus Jakarta Sans",Arial,sans-serif`;
+  const meas = document.createElement('canvas').getContext('2d');
+  meas.font = font;
+  const w = Math.ceil(meas.measureText(text).width) + padX * 2;
+  const h = Math.ceil(fontPx * 1.35);
+  const c = document.createElement('canvas');
+  c.width = w * scale; c.height = h * scale;
+  const ctx = c.getContext('2d');
+  ctx.scale(scale, scale);
+  ctx.font = font;
+  ctx.fillStyle = color;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, padX, h / 2);
+  return { data: c.toDataURL('image/png'), w, h };
+}
+
 function pdfLoadImage(url, swatch) {
   return new Promise((resolve) => {
     let settled = false;
@@ -73,40 +118,49 @@ async function buildOrderSheet(order, t) {
   const MUTED = [154, 130, 112];
   const LINE = [242, 226, 209];
 
-  /* ---------- Header band: logo placeholder + store name ---------- */
-  doc.setFillColor(...BRAND);
-  doc.roundedRect(M, 14, 14, 14, 3, 3, 'F');         // logo placeholder square
-  doc.setTextColor(255, 255, 255);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(15);
-  doc.text('M', M + 7, 24, { align: 'center' });
-
+  /* ---------- Header: logo centered middle-top (first page only) ---------- */
+  const logo = await pdfLoadLogo();
+  let y = 12;
+  if (logo) {
+    const lh = 24;                               // logo height (mm) — larger crest
+    const lw = lh * (logo.w / logo.h);
+    doc.addImage(logo.data, 'PNG', (PAGE_W - lw) / 2, y, lw, lh, undefined, 'FAST');
+    y += lh + 4;
+  } else {
+    y += 6;
+  }
   doc.setTextColor(...INK);
-  doc.setFontSize(20);
-  doc.text('Ai Mini-Mart', M + 19, 22);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(18);
+  doc.text('Ai Mini-Mart', PAGE_W / 2, y, { align: 'center' });
+  y += 5.5;
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   doc.setTextColor(...MUTED);
-  doc.text('Everyday goods, sorted.', M + 19, 27);
+  doc.text('Everyday goods, sorted.', PAGE_W / 2, y, { align: 'center' });
+  y += 6;
 
-  // Right side: ORDER SHEET title + meta
+  doc.setDrawColor(...LINE);
+  doc.setLineWidth(0.4);
+  doc.line(M, y, PAGE_W - M, y);
+  y += 7;
+
+  /* ---------- Meta row: ORDER SHEET (left) + id / date (right) ---------- */
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(16);
+  doc.setFontSize(15);
   doc.setTextColor(...BRAND);
-  doc.text(t('pdf_order_sheet'), PAGE_W - M, 20, { align: 'right' });
+  doc.text(t('pdf_order_sheet'), M, y);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9.5);
   doc.setTextColor(...INK);
-  doc.text(`${t('pdf_order_id')}: ${order.id}`, PAGE_W - M, 26, { align: 'right' });
-  doc.text(`${t('pdf_date')}: ${order.dateStr}`, PAGE_W - M, 30.5, { align: 'right' });
-
-  // Divider
+  doc.text(`${t('pdf_order_id')}: ${order.id}`, PAGE_W - M, y - 3, { align: 'right' });
+  doc.text(`${t('pdf_date')}: ${order.dateStr}`, PAGE_W - M, y + 1.5, { align: 'right' });
+  y += 5;
   doc.setDrawColor(...LINE);
-  doc.setLineWidth(0.4);
-  doc.line(M, 34, PAGE_W - M, 34);
+  doc.line(M, y, PAGE_W - M, y);
 
   /* ---------- Customer info block ---------- */
-  let y = 42;
+  y += 8;
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
   doc.setTextColor(...INK);
@@ -152,26 +206,31 @@ async function buildOrderSheet(order, t) {
     const unit = convertRaw(it.unitTHB, cur);
     const lineTotal = unit * it.qty;
     grand += lineTotal;
+    // Item cell prints on two lines: name, then its variant (no parentheses).
+    const itemCell = it.variant ? `${it.name}\n${it.variant}` : it.name;
     return [
       '',                               // image cell (painted in didDrawCell)
-      it.name,
+      itemCell,
       String(it.qty),
       formatMoneyPDF(unit, cur),
       formatMoneyPDF(lineTotal, cur),
     ];
   });
 
+  // More breathing room between the item name and its variant line.
+  doc.setLineHeightFactor(1.5);
   doc.autoTable({
     startY: y + 3,
     margin: { left: M, right: M },
     head: [['', t('pdf_item'), t('pdf_qty'), t('pdf_unit'), t('pdf_line')]],
     body,
     theme: 'striped',
-    styles: { font: 'helvetica', fontSize: 9.5, cellPadding: 3, textColor: INK, lineColor: LINE, lineWidth: 0.1, valign: 'middle', minCellHeight: 16 },
-    headStyles: { fillColor: BRAND, textColor: [255, 255, 255], fontStyle: 'bold', halign: 'left' },
+    styles: { font: 'helvetica', fontStyle: 'bold', fontSize: 11, cellPadding: 4, textColor: INK, lineColor: LINE, lineWidth: 0.1, valign: 'middle', minCellHeight: 24 },
+    headStyles: { fillColor: BRAND, textColor: [255, 255, 255], fontStyle: 'bold', halign: 'left', fontSize: 10.5 },
     alternateRowStyles: { fillColor: [247, 245, 238] },
     columnStyles: {
-      0: { cellWidth: 18, halign: 'center' },
+      0: { cellWidth: 26, halign: 'center' },
+      1: { fontStyle: 'bold' },
       2: { halign: 'center', cellWidth: 16 },
       3: { halign: 'right', cellWidth: 32 },
       4: { halign: 'right', cellWidth: 34 },
@@ -180,26 +239,46 @@ async function buildOrderSheet(order, t) {
       if (d.section === 'body' && d.column.index === 0) {
         const data = rowImages[d.row.index];
         if (!data) return;
-        const size = 13;
+        const size = 20;                 // bigger product thumbnail
         const x = d.cell.x + (d.cell.width - size) / 2;
         const yy = d.cell.y + (d.cell.height - size) / 2;
         doc.addImage(data, 'JPEG', x, yy, size, size, undefined, 'FAST');
       }
     },
   });
+  doc.setLineHeightFactor(1.15);                 // restore default for the rest
 
-  /* ---------- Grand total ---------- */
+  /* ---------- Grand total ----------
+   * The amount is drawn as an image rendered with the browser's own fonts so
+   * the real currency symbol (฿ / ៛) prints correctly — jsPDF's Helvetica
+   * (WinAnsi) has no glyph for them and would garble the digits. */
   let afterY = doc.lastAutoTable.finalY + 8;
-  const boxW = 78;
+  const boxW = 96, boxH = 19;
   const boxX = PAGE_W - M - boxW;
+  const labelW = 46;                              // left label panel width
+  // Brand-orange label panel on the left, white amount panel on the right so the
+  // total reads as its own bright chip. White panel gets a brand border so it
+  // stays visible on the white page.
   doc.setFillColor(...BRAND);
-  doc.roundedRect(boxX, afterY, boxW, 14, 2.5, 2.5, 'F');
+  doc.roundedRect(boxX, afterY, boxW, boxH, 2.5, 2.5, 'F');
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(...BRAND);
+  doc.setLineWidth(0.6);
+  doc.roundedRect(boxX + labelW, afterY, boxW - labelW, boxH, 2.5, 2.5, 'FD');
+  doc.setFillColor(...BRAND);
+  doc.rect(boxX + labelW, afterY + 0.6, 2.5, boxH - 1.2, 'F');  // square off the seam edge
+
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9.5);
-  doc.text(t('pdf_grand_total'), boxX + 5, afterY + 8.6);
-  doc.setFontSize(13);
-  doc.text(formatMoneyPDF(grand, cur), boxX + boxW - 5, afterY + 9, { align: 'right' });
+  doc.setFontSize(10);
+  doc.text(t('pdf_grand_total'), boxX + 6, afterY + boxH / 2 + 1.3);
+
+  // Amount: dark brand on the white panel, heavy weight — rendered as an image
+  // so the currency symbol (฿ / ៛) prints correctly.
+  const amtImg = pdfTextImage(formatMoney(grand, cur), '#9A3412');
+  const amtH = 9;                                   // amount height (mm) — bigger
+  const amtW = amtH * (amtImg.w / amtImg.h);
+  doc.addImage(amtImg.data, 'PNG', boxX + boxW - 7 - amtW, afterY + (boxH - amtH) / 2, amtW, amtH);
 
   /* ---------- Footer: staff-use line ---------- */
   const footY = Math.max(afterY + 30, 250);
@@ -219,7 +298,7 @@ async function buildOrderSheet(order, t) {
 }
 
 /* ---------- Output actions ---------- */
-const orderFileName = (order) => `AiMiniMart-Order-${order.id}.pdf`;
+const orderFileName = (order) => `Ai-Mini-Mart [ ${order.id} ].pdf`;
 
 // "Download PDF": save the sheet and open it in a new tab.
 async function downloadOrderSheet(order, t) {
