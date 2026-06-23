@@ -19,9 +19,8 @@ const STORE_API_BASE = (() => {
   if (override) return override.replace(/\/$/, '');
   const h = location.hostname;
   if (h === 'localhost' || h === '127.0.0.1') return 'http://localhost:3000';
-  // TODO: after deploying the backend, replace with the Render URL, e.g.
-  //   return 'https://ai-mini-mart-api.onrender.com';
-  return 'https://REPLACE_WITH_RENDER_URL';
+  // Deployed backend (Render).
+  return 'https://ai-mini-mart-api.onrender.com';
 })();
 
 // Feed variants carry no colour chip / group label (storefront-only concepts),
