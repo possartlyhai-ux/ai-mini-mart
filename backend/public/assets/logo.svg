@@ -1,0 +1,28 @@
+<svg viewBox="0 0 200 185" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Ai Mini-Mart">
+  <defs>
+    <linearGradient id="aiGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFA51C"/>
+      <stop offset="1" stop-color="#FF5A00"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Shopping cart -->
+  <path d="M30 50 H46 a10 10 0 0 1 9.6 7.1 L78 134 H150 L170 80 H62"
+        fill="none" stroke="url(#aiGrad)" stroke-width="16"
+        stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Wheels -->
+  <circle cx="92" cy="152" r="9" fill="url(#aiGrad)"/>
+  <circle cx="142" cy="152" r="9" fill="url(#aiGrad)"/>
+
+  <!-- White triangle inside the basket -->
+  <path d="M108 88 L93 114 H123 Z" fill="#fff"/>
+
+  <!-- White rounded shelf bar -->
+  <rect x="90" y="120" width="40" height="9" rx="4.5" fill="#fff"/>
+
+  <!-- "i" stem + star dot (the Ai accent) -->
+  <rect x="168" y="98" width="16" height="44" rx="8" fill="url(#aiGrad)"/>
+  <path d="M176 53 L180.2 64.2 L192.2 64.8 L182.9 72.2 L186 83.8 L176 77.2
+           L166 83.8 L169.1 72.2 L159.8 64.8 L171.8 64.2 Z" fill="url(#aiGrad)"/>
+</svg>
