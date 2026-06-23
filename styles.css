@@ -672,6 +672,13 @@ img { display: block; max-width: 100%; }
 }
 .vthumb img { width: 100%; height: 100%; object-fit: cover; }
 .vthumb.on { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
+/* out-of-stock variant: dimmed with a ✕ marker (still selectable to view) */
+.vthumb--out { opacity: .5; }
+.vthumb--out::after {
+  content: "✕"; position: absolute; inset: 0; display: grid; place-items: center;
+  font-weight: 800; font-size: 1.3rem; color: var(--bad);
+  background: color-mix(in srgb, var(--surface) 55%, transparent);
+}
 .vthumb__dot {
   position: absolute; left: 5px; bottom: 5px; width: 13px; height: 13px;
   border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.18);
@@ -712,4 +719,129 @@ img { display: block; max-width: 100%; }
   .brand__type strong { font-size: 1.15rem; }
   .card__name { font-size: .88rem; }
   .price-now { font-size: 1.05rem; }
+}
+
+/* ===================== CONTACT POPUP (Line / Telegram) ===================== */
+.contact-scrim {
+  position: fixed; inset: 0; z-index: 90;
+  background: rgba(30,16,6,.5); backdrop-filter: blur(3px);
+  opacity: 0; animation: fade .22s forwards;
+}
+.contact-modal {
+  position: fixed; inset: 0; z-index: 91;
+  display: grid; place-items: center; padding: 20px;
+}
+.contact-card {
+  position: relative;
+  width: min(420px, 100%); max-height: 90dvh; overflow: auto;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: 26px; box-shadow: var(--shadow);
+  padding: 30px 22px 22px;
+  animation: popin .26s cubic-bezier(.2,.8,.2,1);
+}
+.contact-close {
+  position: absolute; top: 12px; right: 14px;
+  width: 32px; height: 32px; border: none; border-radius: 10px;
+  background: transparent; color: var(--ink-soft); cursor: pointer;
+  font-size: 1rem; line-height: 1;
+}
+.contact-close:hover { background: var(--bg-2); color: var(--ink); }
+
+.contact-list { display: flex; flex-direction: column; gap: 6px; }
+
+/* One contact (CONTACT .1 / .2) — divider between, no box per card. */
+.cc { padding: 12px 4px; }
+.cc + .cc { border-top: 1px solid var(--line); }
+.cc__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.cc__title { margin: 0; font-family: 'Bricolage Grotesque', system-ui, sans-serif;
+  font-size: 1.05rem; font-weight: 800; letter-spacing: .02em; color: var(--ink); }
+.cc__qrbtn {
+  display: grid; place-items: center;
+  width: 34px; height: 34px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--surface); color: var(--ink); cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.cc__qrbtn:hover { background: var(--brand-soft); color: var(--brand-ink); border-color: var(--brand); }
+.cc--open .cc__qrbtn { background: var(--brand); color: #fff; border-color: var(--brand); }
+
+.cc__names { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.cc__name {
+  display: inline-flex; align-items: center; gap: 7px;
+  text-decoration: none; font-weight: 700; font-size: .95rem;
+  color: var(--ink); overflow: hidden;
+}
+.cc__name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cc__name:hover span { text-decoration: underline; }
+.cc__name--line { color: #06C755; }
+.cc__name--tg   { color: #229ED9; }
+.cc__name--empty { color: var(--ink-soft); font-weight: 600; }
+.cc__ico { flex: 0 0 auto; }
+
+/* Expanded QR codes — green for Line, blue for Telegram, framed to match. */
+.cc__qrs { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+.cc__qrcell { margin: 0; text-align: center; }
+.cc__qrimg {
+  width: 100%; aspect-ratio: 1; object-fit: contain;
+  background: #fff; border: 2px solid var(--line); border-radius: 14px; padding: 8px;
+}
+.cc__qrcell:nth-child(1) .cc__qrimg { border-color: #06C755; }
+.cc__qrcell:nth-child(2) .cc__qrimg { border-color: #229ED9; }
+.cc__qrcell figcaption { margin-top: 6px; font-size: .8rem; font-weight: 700; color: var(--ink-soft); }
+
+/* Contact button: same pressable feel as the cart pill, but neutral so it
+   doesn't read as a second primary action next to the orange cart. */
+.cartbtn--ghost {
+  background: var(--surface); color: var(--ink);
+  border: 1.5px solid var(--line);
+  box-shadow: 0 2px 0 0 var(--line);   /* pressable bottom lip */
+}
+[data-theme="dark"] .cartbtn--ghost, [data-theme="festival"] .cartbtn--ghost { color: var(--ink); }
+.cartbtn--ghost:hover { filter: none; border-color: color-mix(in srgb, var(--brand) 45%, var(--line)); }
+
+/* ===================== ORDER HISTORY POPUP ===================== */
+.hist {
+  pointer-events: auto;
+  width: min(560px, 100%); max-height: 90dvh; overflow: auto;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: 24px; box-shadow: var(--shadow);
+  animation: popin .26s cubic-bezier(.2,.8,.2,1);
+}
+.hist__head {
+  position: sticky; top: 0; z-index: 1;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 18px 20px; background: var(--surface); border-bottom: 1px solid var(--line);
+}
+.hist__title { margin: 0; font-family: 'Bricolage Grotesque', system-ui, sans-serif;
+  font-size: 1.3rem; font-weight: 800; }
+.hist__empty { padding: 48px 24px; text-align: center; color: var(--ink-soft); }
+.hist__art { font-size: 2.4rem; margin-bottom: 8px; }
+
+.hist__list { display: flex; flex-direction: column; gap: 14px; padding: 18px 20px 22px; }
+.hist__order { border: 1px solid var(--line); border-radius: 16px; padding: 14px; background: var(--bg-2); }
+.hist__ohead { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.hist__oid { display: flex; align-items: center; gap: 8px; }
+.hist__oid strong { font-family: 'Space Mono', monospace; font-size: .95rem; }
+.hist__status {
+  font-size: .68rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase;
+  padding: 2px 8px; border-radius: 999px; background: var(--brand-soft); color: var(--brand-ink);
+}
+.hist__status--sent { background: #DCFCE7; color: #166534; }
+.hist__date { font-size: .78rem; color: var(--ink-soft); }
+
+.hist__items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.hist__item { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: baseline; font-size: .9rem; }
+.hist__qty { font-family: 'Space Mono', monospace; font-weight: 700; color: var(--brand-ink); }
+.hist__iname { overflow: hidden; text-overflow: ellipsis; }
+.hist__iname em { color: var(--ink-soft); font-style: normal; }
+.hist__iline { color: var(--ink-soft); white-space: nowrap; }
+
+.hist__ofoot { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line); }
+.hist__total { font-size: 1rem; }
+.hist__reorder { padding: 8px 16px; }
+
+@media (max-width: 560px) {
+  .hist__ohead { flex-direction: column; gap: 2px; }
+  .hist__ofoot { flex-direction: column; align-items: stretch; }
+  .hist__reorder { width: 100%; }
 }

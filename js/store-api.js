@@ -42,6 +42,7 @@ function mapFeedProduct(p) {
     label: v.label || 'Default',
     swatch: swatchFor(v.label),
     img: v.img || '',
+    inStock: v.inStock !== false, // carry per-variant stock so the shop can gate each one
   }));
   return {
     id: p.id,
@@ -49,7 +50,7 @@ function mapFeedProduct(p) {
     tags: Array.isArray(p.tags) ? p.tags : [],
     priceTHB: Number(p.priceTHB) || 0,
     priceKHR: p.priceKHR != null ? Number(p.priceKHR) : undefined,
-    inStock: p.inStock !== false,
+    inStock: variants.some((v) => v.inStock), // product is "in stock" if ANY variant is
     unit: p.unit || '',
     variantLabel: 'Option',
     variants,

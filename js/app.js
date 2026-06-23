@@ -352,8 +352,12 @@ function persist() {
 
 function addToCart(id, qty = 1, variantLabel) {
   const product = PRODUCTS.find(p => p.id === id);
-  if (!product || !product.inStock) return;
-  const variant = variantLabel || product.variants[0].label;
+  if (!product) return;
+  // Default to the first IN-STOCK variant when none is specified.
+  const variant = variantLabel
+    || (product.variants.find(v => v.inStock !== false) || product.variants[0]).label;
+  const v = product.variants.find(x => x.label === variant) || product.variants[0];
+  if (!v || v.inStock === false) return; // never add an out-of-stock variant
   const key = lineKeyOf(id, variant);
   const existing = state.cart[key];
   state.cart[key] = { id, variant, qty: (existing ? existing.qty : 0) + qty };
@@ -376,6 +380,8 @@ function updateBadges() {
   cc.textContent = count; cc.hidden = count === 0;
   const fc = $('#fav-count');
   fc.textContent = state.favorites.length; fc.hidden = state.favorites.length === 0;
+  const hc = $('#history-count');
+  if (hc) { const n = LS.get('orders', []).length; hc.textContent = n; hc.hidden = n === 0; }
 }
 
 function renderCart() {
@@ -566,7 +572,7 @@ function renderDetail() {
       <h2 class="pd__name" id="pd-name">${p.name}</h2>
       <div class="pd__tags">${p.tags.map(tg => `<span class="pd__tag">${t('cat_' + tg)}</span>`).join('')}</div>
       <div class="pd__row">
-        <span class="stock ${p.inStock ? 'stock--in' : 'stock--out'}">${p.inStock ? t('in_stock') : t('out_of_stock')}</span>
+        <span id="pd-stock" class="stock ${v.inStock !== false ? 'stock--in' : 'stock--out'}">${v.inStock !== false ? t('in_stock') : t('out_of_stock')}</span>
       </div>
       <div class="pd__divider"></div>
       <div class="pd__row">
@@ -579,7 +585,7 @@ function renderDetail() {
       </div>
       <div class="pd__variants">
         ${p.variants.map((vv, i) => `
-          <button class="vthumb ${i === idx ? 'on' : ''}" data-pd-variant="${i}" title="${vv.label}" aria-label="${vv.label}">
+          <button class="vthumb ${i === idx ? 'on' : ''} ${vv.inStock === false ? 'vthumb--out' : ''}" data-pd-variant="${i}" title="${vv.label}${vv.inStock === false ? ' — ' + t('out_of_stock') : ''}" aria-label="${vv.label}">
             <img src="${vv.img}" alt="${vv.label}" data-fb="${p.id}" onerror="this.onerror=null;this.src=fallbackImg('${p.id}')" />
             <span class="vthumb__dot" style="background:${vv.swatch}"></span>
           </button>`).join('')}
@@ -592,11 +598,11 @@ function renderDetail() {
                  pattern="[0-9]*" value="${detailState.qty}" aria-label="${t('qty')}" />
           <button data-pd-inc aria-label="+">+</button>
         </div>
-        <button class="pd__add" data-pd-add ${p.inStock ? '' : 'disabled'}>
+        <button class="pd__add" data-pd-add ${v.inStock !== false ? '' : 'disabled'}>
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
             <path d="M3 4h2l2 11h10l2-8H6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
-          <span>${p.inStock ? t('add_to_bag') : t('out_of_stock')}</span>
+          <span>${v.inStock !== false ? t('add_to_bag') : t('out_of_stock')}</span>
         </button>
       </div>
     </div>`;
@@ -613,6 +619,21 @@ function setDetailIndex(i) {
   fadeTo($('#pd-main'), imgs[idx]);
   $('#pd-content').querySelectorAll('[data-pd-variant]').forEach((b, k) => b.classList.toggle('on', k === idx));
   $('#pd-variant-name').textContent = p.variants[idx].label;
+
+  // Reflect the selected variant's stock on the badge + add button.
+  const inStk = p.variants[idx].inStock !== false;
+  const badge = $('#pd-stock');
+  if (badge) {
+    badge.classList.toggle('stock--in', inStk);
+    badge.classList.toggle('stock--out', !inStk);
+    badge.textContent = inStk ? t('in_stock') : t('out_of_stock');
+  }
+  const addBtn = $('#pd-content [data-pd-add]');
+  if (addBtn) {
+    addBtn.disabled = !inStk;
+    const lbl = addBtn.querySelector('span');
+    if (lbl) lbl.textContent = inStk ? t('add_to_bag') : t('out_of_stock');
+  }
 }
 
 function setDetailQty(q) {
@@ -698,13 +719,15 @@ function wire() {
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       closeAllMenus();
-      if (!$('#detail').hidden) closeDetail();
+      if (!$('#history').hidden) closeHistory();
+      else if (!$('#detail').hidden) closeDetail();
       else if ($('#drawer').classList.contains('open')) closeDrawer();
       return;
     }
-    // Keep Tab inside whichever overlay is open (detail wins — it stacks above).
+    // Keep Tab inside whichever overlay is open (detail/history win — they stack above).
     if (e.key === 'Tab') {
-      if (!$('#detail').hidden) trapFocus($('#detail'), e);
+      if (!$('#history').hidden) trapFocus($('#history'), e);
+      else if (!$('#detail').hidden) trapFocus($('#detail'), e);
       else if ($('#drawer').classList.contains('open')) trapFocus($('#drawer'), e);
     }
   });
@@ -751,6 +774,15 @@ function wire() {
   $('#btn-place').addEventListener('click', downloadOrder);
   $('#btn-share').addEventListener('click', shareOrder);
   $('#done-new').addEventListener('click', () => { closeDrawer(); showDrawerView('cart'); });
+
+  // --- Order history popup ---
+  $('#history-open').addEventListener('click', openHistory);
+  $('#history-scrim').addEventListener('click', closeHistory);
+  $('#hist-content').addEventListener('click', (e) => {
+    if (e.target.closest('#history-close')) return closeHistory();
+    const r = e.target.closest('[data-reorder]');
+    if (r) reorderById(r.dataset.reorder);
+  });
 
   // --- Product detail popup ---
   $('#detail-scrim').addEventListener('click', closeDetail);
@@ -842,6 +874,7 @@ function buildOrder() {
     items: cartEntries().map(({ product, variant, qty }) => {
       const v = product.variants.find(x => x.label === variant) || product.variants[0];
       return {
+        id: product.id,                  // kept so order history can re-add to cart
         name: product.name,
         variant: variant || '',          // kept separate so the PDF prints it on its own line
         qty, unitTHB: product.priceTHB, img: v.img, swatch: v.swatch,
@@ -861,6 +894,27 @@ function nextOrderId() {
   return 'MM-' + n;
 }
 
+// Record a completed order so the customer can see it under "Order history".
+// We keep a trimmed copy (no images/swatches) and cap the list so localStorage
+// never grows unbounded. Newest first.
+function saveOrderHistory(order, status) {
+  const totalTHB = order.items.reduce((s, it) => s + it.unitTHB * it.qty, 0);
+  const record = {
+    id: order.id,
+    dateStr: order.dateStr,
+    status,                              // 'downloaded' | 'shared' | 'sent'
+    currency: order.currency,
+    customer: { name: order.customer?.name || '' },
+    totalTHB,
+    items: order.items.map(it => ({ id: it.id, name: it.name, variant: it.variant, qty: it.qty, unitTHB: it.unitTHB })),
+  };
+  const list = LS.get('orders', []);
+  list.unshift(record);
+  if (list.length > 30) list.length = 30;
+  LS.set('orders', list);
+  updateBadges();
+}
+
 function finalizeOrder(bodyKey) {
   state.cart = {};
   persist();
@@ -878,7 +932,7 @@ async function downloadOrder() {
   if (!order) return;
   const btn = $('#btn-place');
   btn.disabled = true;
-  try { await downloadOrderSheet(order, tPDF); toast(t('saved')); }
+  try { await downloadOrderSheet(order, tPDF); saveOrderHistory(order, 'downloaded'); toast(t('saved')); }
   catch (e) { console.error(e); toast('PDF error — see console'); }
   finally { btn.disabled = false; }
 }
@@ -894,9 +948,97 @@ async function shareOrder() {
   try {
     const result = await shareOrderSheet(order, tPDF);   // 'shared' | 'downloaded' | 'cancelled'
     if (result === 'cancelled') return;               // user dismissed the share sheet — keep editing
+    saveOrderHistory(order, result === 'shared' ? 'sent' : 'downloaded');
     finalizeOrder(result === 'shared' ? 'order_shared_body' : 'share_fallback');
   } catch (e) { console.error(e); toast('Share error — see console'); }
   finally { btn.disabled = false; }
+}
+
+/* =========================================================================
+ * ORDER HISTORY popup
+ * -------------------------------------------------------------------------
+ * Past orders are persisted by saveOrderHistory() under mymart.orders. This
+ * popup lists them newest-first; "Reorder" drops the same items back into the
+ * cart. Money is shown via money() so it tracks the active currency, not the
+ * currency the order was originally placed in.
+ * ========================================================================= */
+let histLastFocused = null;
+
+function renderHistory() {
+  const orders = LS.get('orders', []);
+  const el = $('#hist-content');
+  const head = `
+    <header class="hist__head">
+      <h2 id="history-title" class="hist__title">${t('order_history')}</h2>
+      <button class="iconbtn iconbtn--close" id="history-close" aria-label="Close">✕</button>
+    </header>`;
+
+  if (!orders.length) {
+    el.innerHTML = head + `
+      <div class="hist__empty">
+        <div class="hist__art" aria-hidden="true">🧾</div>
+        <p>${t('no_orders')}</p>
+      </div>`;
+    return;
+  }
+
+  const body = orders.map(o => {
+    const items = o.items.map(it => `
+      <li class="hist__item">
+        <span class="hist__qty">${it.qty}×</span>
+        <span class="hist__iname">${contactEscape(it.name)}${it.variant ? ` <em>· ${contactEscape(it.variant)}</em>` : ''}</span>
+        <span class="hist__iline mono">${money(it.unitTHB * it.qty)}</span>
+      </li>`).join('');
+    return `
+      <article class="hist__order">
+        <header class="hist__ohead">
+          <div class="hist__oid">
+            <strong>${contactEscape(o.id)}</strong>
+            <span class="hist__status hist__status--${o.status}">${t('status_' + o.status) || o.status}</span>
+          </div>
+          <time class="hist__date">${contactEscape(o.dateStr)}</time>
+        </header>
+        <ul class="hist__items">${items}</ul>
+        <footer class="hist__ofoot">
+          <strong class="hist__total mono">${t('total')}: ${money(o.totalTHB)}</strong>
+          <button class="btn btn--primary hist__reorder" data-reorder="${contactEscape(o.id)}">${t('reorder')}</button>
+        </footer>
+      </article>`;
+  }).join('');
+
+  el.innerHTML = head + `<div class="hist__list">${body}</div>`;
+}
+
+function openHistory() {
+  histLastFocused = document.activeElement;
+  renderHistory();
+  $('#history-scrim').hidden = false;
+  $('#history').hidden = false;
+  document.body.style.overflow = 'hidden';
+  $('#hist-content').querySelector('#history-close')?.focus();
+}
+
+function closeHistory() {
+  $('#history').hidden = true;
+  $('#history-scrim').hidden = true;
+  if (!$('#drawer').classList.contains('open') && $('#detail').hidden) document.body.style.overflow = '';
+  histLastFocused?.focus?.();
+  histLastFocused = null;
+}
+
+// "Reorder" — re-add the order's still-available items to the cart, then open it.
+function reorderById(id) {
+  const o = LS.get('orders', []).find(x => x.id === id);
+  if (!o) return;
+  let added = 0, skipped = 0;
+  o.items.forEach(it => {
+    const p = PRODUCTS.find(x => x.id === it.id);
+    if (p && p.inStock) { addToCart(it.id, it.qty, it.variant); added++; }
+    else skipped++;
+  });
+  closeHistory();
+  if (added) { openDrawer(); toast(skipped ? t('reorder_partial') : t('reordered')); }
+  else toast(t('reorder_unavailable'));
 }
 
 /* =========================================================================
