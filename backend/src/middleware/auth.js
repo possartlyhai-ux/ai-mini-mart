@@ -1,4 +1,6 @@
-// Auth + RBAC middleware. The JWT travels in an httpOnly cookie set at login.
+// Auth + RBAC middleware. Token transport: `Authorization: Bearer <jwt>` (the
+// Android/Capacitor app, cross-origin) OR the httpOnly cookie (same-origin
+// browser admin). The Bearer header wins when both are present.
 const { prisma } = require('../db');
 const { verifyToken, COOKIE_NAME } = require('../lib/auth');
 const { permissionsFor, hasPermission } = require('../config/permissions');
@@ -6,7 +8,9 @@ const { permissionsFor, hasPermission } = require('../config/permissions');
 // Loads the current user onto req.user (or null). Does not block.
 async function attachUser(req, _res, next) {
   req.user = null;
-  const token = req.cookies?.[COOKIE_NAME];
+  const header = req.headers.authorization || '';
+  const bearer = header.startsWith('Bearer ') ? header.slice(7).trim() : null;
+  const token = bearer || req.cookies?.[COOKIE_NAME];
   if (token) {
     const payload = verifyToken(token);
     if (payload?.uid) {

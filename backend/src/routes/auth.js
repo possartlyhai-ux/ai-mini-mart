@@ -25,12 +25,15 @@ router.post('/login', async (req, res, next) => {
     if (!user || !user.active || !(await verifyPassword(password, user.passwordHash))) {
       return res.status(401).json({ error: 'Invalid username or password.' });
     }
-    res.cookie(COOKIE_NAME, signToken(user), {
+    const token = signToken(user);
+    // Cookie keeps the same-origin browser admin working (httpOnly).
+    res.cookie(COOKIE_NAME, token, {
       httpOnly: true,
       sameSite: 'lax',
       maxAge: 12 * 60 * 60 * 1000,
     });
-    res.json({ user: publicUser(user) });
+    // token in the body is what the Android app stores + sends as a Bearer.
+    res.json({ user: publicUser(user), token });
   } catch (err) {
     next(err);
   }

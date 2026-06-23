@@ -159,7 +159,8 @@ $('#login-form').addEventListener('submit', async (e) => {
   const f = e.target;
   $('#login-error').hidden = true;
   try {
-    const { user } = await API.post('/auth/login', { username: f.username.value, password: f.password.value });
+    const { user, token } = await API.post('/auth/login', { username: f.username.value, password: f.password.value });
+    if (token) API.setToken(token); // app (Bearer) path; harmless for the browser
     onAuthed(user);
     f.reset();
   } catch (err) {
@@ -168,7 +169,11 @@ $('#login-form').addEventListener('submit', async (e) => {
     box.hidden = false;
   }
 });
-$('#logout').addEventListener('click', async () => { await API.post('/auth/logout'); location.reload(); });
+$('#logout').addEventListener('click', async () => {
+  try { await API.post('/auth/logout'); } catch { /* ignore */ }
+  API.setToken(null);
+  location.reload();
+});
 // Jump to the customer storefront (separate app on :5173 in dev). Same host so it
 // works off-localhost; change the port here if the storefront is served elsewhere.
 { const vs = $('#view-store'); if (vs) vs.href = `${location.protocol}//${location.hostname}:5173`; }
