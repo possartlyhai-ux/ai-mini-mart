@@ -1,9 +1,8 @@
 // Ai Mini-Mart — staff/POS backend schema.
 //
-// DB is SQLite for zero-setup local dev. To move to Postgres later, change the
-// datasource `provider` to "postgresql" and point DATABASE_URL at the server —
-// no model changes are required (enums are modelled as documented String fields
-// precisely so SQLite and Postgres share one schema).
+// DB is PostgreSQL (Render-managed in prod; a local Postgres for dev). Enum-like
+// fields are documented String fields so the schema is portable. Set DATABASE_URL
+// to the Postgres connection string (see .env.example).
 //
 // MONEY: every *Minor field is an INTEGER in THB minor units (satang = baht*100)
 // for decimal-safe arithmetic. Convert/format via src/lib/currency.js.
@@ -13,7 +12,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -76,6 +75,7 @@ model Category {
   slug      String   @unique
   label     String
   icon      String?
+  imageUrl  String?  // rectangle banner shown per-category on the storefront
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -125,6 +125,8 @@ model PrinterSetting {
   type       String   @default("thermal") // "thermal" | "normal"
   headerText String?
   footerText String?
+  logoUrl    String? // receipt logo image (uploaded)
+  layoutJson String? // JSON: receipt block order + per-block enable + mart name/size + caption
   isDefault  Boolean  @default(false)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt

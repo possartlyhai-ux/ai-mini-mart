@@ -20,6 +20,7 @@ const PERMISSIONS = {
   BILLS_CREATE: 'bills:create',
   BILLS_READ: 'bills:read', // all bills
   BILLS_READ_OWN: 'bills:read:own', // only bills they created
+  BILLS_MANAGE: 'bills:manage', // disable/enable (void) + delete a bill (Owner)
   REPORTS_READ: 'reports:read',
   STAFF_MANAGE: 'staff:manage',
   PRINTERS_READ: 'printers:read', // read settings + print/reprint receipts

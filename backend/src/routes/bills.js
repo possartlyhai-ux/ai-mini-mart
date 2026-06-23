@@ -168,6 +168,39 @@ router.get('/:id', requireAuth, async (req, res, next) => {
   }
 });
 
+// =============================================================================
+// Owner: disable/enable a bill (toggle PAID <-> VOID). VOID bills are excluded
+// from Reports (reports query filters status:'PAID'), but stay in history.
+// =============================================================================
+router.patch('/:id/status', requireAuth, requirePermission(PERMISSIONS.BILLS_MANAGE), async (req, res, next) => {
+  try {
+    const status = v.oneOf(req.body.status, 'Status', ['PAID', 'VOID']);
+    const bill = await prisma.bill.update({
+      where: { id: Number(req.params.id) },
+      data: { status },
+      include: { items: true, staff: true },
+    });
+    res.json({ bill: serializeBill(bill) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Owner: hard-delete a bill (and its line items). Use disable instead to keep
+// history; delete is for mistakes/test data.
+router.delete('/:id', requireAuth, requirePermission(PERMISSIONS.BILLS_MANAGE), async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    await prisma.$transaction([
+      prisma.billItem.deleteMany({ where: { billId: id } }),
+      prisma.bill.delete({ where: { id } }),
+    ]);
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Printable receipt (HTML) — sized to the default printer; opens print dialog.
 router.get('/:id/receipt', requireAuth, requirePermission(PERMISSIONS.PRINTERS_READ), async (req, res, next) => {
   try {

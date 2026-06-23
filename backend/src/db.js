@@ -1,6 +1,9 @@
 // Single shared PrismaClient instance for the whole process.
-// Default the SQLite location so the app runs with zero env setup (one command).
-if (!process.env.DATABASE_URL) process.env.DATABASE_URL = 'file:./dev.db';
+// DATABASE_URL must be a Postgres connection string. In prod Render injects it;
+// for local dev set it in backend/.env (default below points at a local Postgres).
+if (!process.env.DATABASE_URL) {
+  process.env.DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/ai_mini_mart';
+}
 const { PrismaClient } = require('@prisma/client');
 
 const prisma = new PrismaClient();

@@ -2,12 +2,32 @@
 // JSON API. Mounted routes enforce auth + RBAC themselves.
 const express = require('express');
 const cookieParser = require('cookie-parser');
+const cors = require('cors');
 const path = require('path');
 
 const { attachUser } = require('./middleware/auth');
 const { HttpError } = require('./lib/validate');
 
 const app = express();
+
+// CORS — the storefront (hosted separately, e.g. Firebase) calls the public
+// /api/storefront feed cross-origin. Allowed origins come from CORS_ORIGIN
+// (comma-separated); localhost dev origins are always allowed.
+const DEV_ORIGINS = ['http://localhost:5173', 'http://127.0.0.1:5173'];
+const ALLOWED_ORIGINS = [
+  ...DEV_ORIGINS,
+  ...(process.env.CORS_ORIGIN || '').split(',').map((s) => s.trim()).filter(Boolean),
+];
+app.use(
+  cors({
+    origin: (origin, cb) => {
+      // No Origin header (same-origin nav, curl) and allow-listed origins pass.
+      if (!origin || ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+      cb(null, false);
+    },
+    credentials: true,
+  })
+);
 
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));

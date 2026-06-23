@@ -1,11 +1,13 @@
-// One-command bootstrap: ensure the SQLite schema exists, seed it on first run,
-// then start the server. `npm start` runs this.
+// One-command bootstrap: ensure the (Postgres) schema exists, seed it on first
+// run, then start the server. `npm start` runs this — also the Render start cmd.
 const { execSync } = require('child_process');
 const path = require('path');
 
-// Default DB location so child `prisma` processes (which inherit this env) and
-// the in-process client both resolve without any .env setup.
-if (!process.env.DATABASE_URL) process.env.DATABASE_URL = 'file:./dev.db';
+// DATABASE_URL must be a Postgres URL (Render injects it in prod). Fall back to a
+// local Postgres for dev so child `prisma` processes and the client both resolve.
+if (!process.env.DATABASE_URL) {
+  process.env.DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/ai_mini_mart';
+}
 
 const ROOT = path.join(__dirname, '..');
 

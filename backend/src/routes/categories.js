@@ -21,7 +21,7 @@ function slugify(label) {
 }
 
 function serializeCategory(c) {
-  return { id: c.id, slug: c.slug, label: c.label, icon: c.icon, sortOrder: c.sortOrder };
+  return { id: c.id, slug: c.slug, label: c.label, icon: c.icon, imageUrl: c.imageUrl || null, sortOrder: c.sortOrder };
 }
 
 // List — anyone who can read products (used by the product form + filters).
@@ -40,15 +40,32 @@ router.post('/', requireAuth, requirePermission(PERMISSIONS.CATEGORIES_MANAGE), 
     const slug = req.body.slug ? slugify(req.body.slug) : slugify(label);
     if (!slug) throw v.badRequest('Could not derive a slug from that label.');
     const icon = v.optionalString(req.body.icon, 'Icon', { max: 8 });
+    const imageUrl = v.optionalString(req.body.imageUrl, 'Banner image', { max: 600 });
     const max = await prisma.category.aggregate({ _max: { sortOrder: true } });
     const sortOrder =
       req.body.sortOrder !== undefined
         ? v.intNonNeg(req.body.sortOrder, 'Sort order')
         : (max._max.sortOrder ?? -1) + 1;
-    const category = await prisma.category.create({ data: { slug, label, icon, sortOrder } });
+    const category = await prisma.category.create({ data: { slug, label, icon, imageUrl, sortOrder } });
     res.status(201).json({ category: serializeCategory(category) });
   } catch (err) {
     next(translateUnique(err));
+  }
+});
+
+// Drag-to-reorder: the body's `order` array of ids becomes sortOrder 0..n.
+// Declared BEFORE '/:id' so Express doesn't match "reorder" as an id.
+router.patch('/reorder', requireAuth, requirePermission(PERMISSIONS.CATEGORIES_MANAGE), async (req, res, next) => {
+  try {
+    const order = Array.isArray(req.body.order) ? req.body.order : null;
+    if (!order || !order.length) throw v.badRequest('Provide an "order" array of category ids.');
+    const ids = order.map((id) => v.intNonNeg(id, 'Category id'));
+    await prisma.$transaction(
+      ids.map((id, index) => prisma.category.update({ where: { id }, data: { sortOrder: index } }))
+    );
+    res.json({ ok: true, count: ids.length });
+  } catch (err) {
+    next(err);
   }
 });
 
@@ -62,6 +79,7 @@ router.patch('/:id', requireAuth, requirePermission(PERMISSIONS.CATEGORIES_MANAG
       data.slug = slug;
     }
     if (req.body.icon !== undefined) data.icon = v.optionalString(req.body.icon, 'Icon', { max: 8 });
+    if (req.body.imageUrl !== undefined) data.imageUrl = v.optionalString(req.body.imageUrl, 'Banner image', { max: 600 });
     if (req.body.sortOrder !== undefined) data.sortOrder = v.intNonNeg(req.body.sortOrder, 'Sort order');
     const category = await prisma.category.update({ where: { id: Number(req.params.id) }, data });
     res.json({ category: serializeCategory(category) });

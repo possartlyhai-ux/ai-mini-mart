@@ -26,7 +26,7 @@ router.get('/products', async (_req, res, next) => {
 router.get('/categories', async (_req, res, next) => {
   try {
     const cats = await prisma.category.findMany({ orderBy: [{ sortOrder: 'asc' }, { label: 'asc' }] });
-    res.json({ categories: cats.map((c) => ({ id: c.slug, icon: c.icon || undefined })) });
+    res.json({ categories: cats.map((c) => ({ id: c.slug, icon: c.icon || undefined, banner: c.imageUrl || undefined })) });
   } catch (err) {
     next(err);
   }

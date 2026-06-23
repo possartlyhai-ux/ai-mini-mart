@@ -16,7 +16,6 @@
       <label>Password<input name="password" type="password" autocomplete="current-password" required /></label>
       <button type="submit" class="btn btn-primary btn-block">Sign in</button>
       <p id="login-error" class="error" hidden></p>
-      <p class="login-hint">Seed logins — owner / Owner@123 · staff / Staff@123</p>
     </form>
   </div>
 
@@ -27,7 +26,6 @@
       <div class="brand">🛒 Ai Mini-Mart <span class="brand-tag">Staff</span></div>
       <div class="spacer"></div>
       <div id="whoami" class="whoami"></div>
-      <button id="logout" class="btn btn-ghost">Sign out</button>
     </header>
 
     <div class="layout">
@@ -39,6 +37,9 @@
         <a data-route="reports" class="navlink" data-perm="reports:read" title="Reports"><span class="ico">📊</span><span class="lbl">Reports</span></a>
         <a data-route="staff" class="navlink" data-perm="staff:manage" title="Staff"><span class="ico">👥</span><span class="lbl">Staff</span></a>
         <a data-route="printers" class="navlink" data-perm="printers:read" title="Printer"><span class="ico">🖨️</span><span class="lbl">Printer</span></a>
+        <div class="nav-spacer"></div>
+        <a id="view-store" class="navlink" target="_blank" rel="noopener" title="Open the customer storefront"><span class="ico">🏪</span><span class="lbl">View store</span></a>
+        <button id="logout" class="navlink nav-logout" title="Sign out"><span class="ico">🚪</span><span class="lbl">Sign out</span></button>
       </nav>
       <main id="view" class="view"></main>
     </div>

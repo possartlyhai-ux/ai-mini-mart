@@ -902,13 +902,20 @@ async function shareOrder() {
 /* =========================================================================
  * INIT
  * ========================================================================= */
-function init() {
+async function init() {
   // Guard against stale localStorage: USD was removed, and the cart format
   // changed from { id: qty } to { lineKey: {id, variant, qty} }.
   if (!CURRENCIES[state.currency]) state.currency = 'KHR';
   if (Object.values(state.cart).some(v => typeof v !== 'object' || v === null)) state.cart = {};
 
   document.documentElement.setAttribute('data-theme', state.theme);
+
+  // Pull the live catalog from the backend if one is reachable; on any failure
+  // keep the static data.js catalog so the shop always renders.
+  if (typeof hydrateCatalog === 'function') {
+    try { await hydrateCatalog(); } catch (e) { console.warn('Catalog: using bundled data (backend unavailable).', e); }
+  }
+
   applyI18n();
   renderChips();
   renderMenus();

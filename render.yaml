@@ -1,0 +1,41 @@
+# Render Blueprint — deploys the Ai Mini-Mart backend (Express API + admin/POS)
+# and a managed Postgres. Connect this repo in the Render dashboard
+# (New > Blueprint); Render reads this file, provisions the DB + web service,
+# and wires DATABASE_URL + JWT_SECRET automatically.
+#
+# After the first deploy:
+#   1. Note the service URL (e.g. https://ai-mini-mart-api.onrender.com).
+#   2. Put that URL in js/store-api.js (STORE_API_BASE) and deploy the storefront.
+#   3. Set CORS_ORIGIN (below) to the storefront URL, then redeploy.
+#
+# Notes: free Postgres expires ~30 days; free web services cold-start after idle.
+# Uploaded images (uploads/) are EPHEMERAL on free instances — they reset on
+# redeploy. Add a persistent disk or object storage for durable uploads.
+
+databases:
+  - name: ai-mini-mart-db
+    plan: free
+    databaseName: ai_mini_mart
+    user: ai_mini_mart
+
+services:
+  - type: web
+    name: ai-mini-mart-api
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ai-mini-mart-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CORS_ORIGIN
+        sync: false # set to the storefront URL after the storefront is deployed
+      - key: NODE_VERSION
+        value: "20"
