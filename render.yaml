@@ -1,22 +1,20 @@
 # Render Blueprint — deploys the Ai Mini-Mart backend (Express API + admin/POS)
-# and a managed Postgres. Connect this repo in the Render dashboard
-# (New > Blueprint); Render reads this file, provisions the DB + web service,
-# and wires DATABASE_URL + JWT_SECRET automatically.
+# as a free web service. The DATABASE is an external Neon Postgres (free,
+# non-expiring) — NOT a Render-managed DB — so there is no 30-day clock.
 #
-# After the first deploy:
-#   1. Note the service URL (e.g. https://ai-mini-mart-api.onrender.com).
-#   2. Put that URL in js/store-api.js (STORE_API_BASE) and deploy the storefront.
-#   3. Set CORS_ORIGIN (below) to the storefront URL, then redeploy.
+# Setup:
+#   1. Create a free project at neon.tech, copy its Postgres connection string.
+#   2. Connect this repo in Render (New > Blueprint). Render reads this file,
+#      auto-generates JWT_SECRET, and prompts for the unset vars.
+#   3. Paste the Neon string into DATABASE_URL (Render env, sync:false below).
+#      Use the POOLED connection string and append ?sslmode=require.
+#   4. After deploy, note the service URL (e.g. https://ai-mini-mart-api.onrender.com),
+#      put it in js/store-api.js (STORE_API_BASE), deploy the storefront, then set
+#      CORS_ORIGIN to the storefront URL and redeploy.
 #
-# Notes: free Postgres expires ~30 days; free web services cold-start after idle.
-# Uploaded images (uploads/) are EPHEMERAL on free instances — they reset on
-# redeploy. Add a persistent disk or object storage for durable uploads.
-
-databases:
-  - name: ai-mini-mart-db
-    plan: free
-    databaseName: ai_mini_mart
-    user: ai_mini_mart
+# Notes: free Render web services cold-start after idle. Uploaded images
+# (uploads/) are EPHEMERAL on free instances — they reset on redeploy. Add a
+# persistent disk or object storage for durable uploads.
 
 services:
   - type: web
@@ -30,9 +28,7 @@ services:
     autoDeploy: true
     envVars:
       - key: DATABASE_URL
-        fromDatabase:
-          name: ai-mini-mart-db
-          property: connectionString
+        sync: false # paste the Neon pooled connection string (?sslmode=require)
       - key: JWT_SECRET
         generateValue: true
       - key: CORS_ORIGIN
