@@ -67,8 +67,33 @@ function authHandleCredential(resp) {
   if (nm && !nm.value) nm.value = auth.user.name || '';
 }
 
+// OAuth2 token client — drives our own "Login / Sign up" button. Unlike the
+// pre-rendered Google button (whose label is a fixed, locale-translated preset),
+// this lets us use any button text we want. It returns an access token, which we
+// exchange for the user's basic profile at Google's userinfo endpoint.
+let googleTokenClient = null;
+
+async function authHandleToken(resp) {
+  if (!resp || resp.error || !resp.access_token) return;
+  try {
+    const r = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: { Authorization: 'Bearer ' + resp.access_token },
+    });
+    const p = await r.json();
+    auth.user = { name: p.name, email: p.email, picture: p.picture };
+    authSaveUser(auth.user);
+    renderAuth();
+    // Live-fill the checkout name if that form is on screen and still empty.
+    const nm = document.querySelector('#view-checkout')?.name;
+    if (nm && !nm.value) nm.value = auth.user.name || '';
+  } catch (e) { /* network/userinfo failure — stay signed out */ }
+}
+
+function startGoogleLogin() {
+  if (googleTokenClient) googleTokenClient.requestAccessToken();
+}
+
 function signOutGoogle() {
-  if (window.google?.accounts?.id) google.accounts.id.disableAutoSelect();
   auth.user = null;
   authSaveUser(null);
   renderAuth();
@@ -76,12 +101,11 @@ function signOutGoogle() {
 
 // Initialise GIS once the library is present + a real Client ID is set.
 function initGoogleAuth() {
-  if (googleConfigured() && window.google?.accounts?.id) {
-    google.accounts.id.initialize({
+  if (googleConfigured() && window.google?.accounts?.oauth2) {
+    googleTokenClient = google.accounts.oauth2.initTokenClient({
       client_id: GOOGLE_CLIENT_ID,
-      callback: authHandleCredential,
-      auto_select: false,
-      cancel_on_tap_outside: true,
+      scope: 'openid email profile',
+      callback: authHandleToken,
     });
   }
   renderAuth();
@@ -126,12 +150,15 @@ function renderAuth() {
     return;
   }
 
-  // Signed out + configured -> render the official Google button.
-  if (googleConfigured() && window.google?.accounts?.id) {
-    slot.innerHTML = `<div id="g-signin"></div>`;
-    google.accounts.id.renderButton(slot.querySelector('#g-signin'), {
-      theme: 'outline', size: 'medium', type: 'standard', shape: 'pill', text: 'signin_with',
-    });
+  // Signed out + configured -> our own "Login / Sign up" button (custom label).
+  if (googleConfigured() && googleTokenClient) {
+    const label = (typeof t === 'function' ? t('login_signup') : '') || 'Login / Sign up';
+    slot.innerHTML = `
+      <button class="authbtn authbtn--g" id="g-login">
+        <span class="g-ico" aria-hidden="true">G</span>
+        <span class="authbtn__name">${label}</span>
+      </button>`;
+    slot.querySelector('#g-login').addEventListener('click', startGoogleLogin);
     return;
   }
 
@@ -140,7 +167,7 @@ function renderAuth() {
     <button class="authbtn authbtn--g" id="g-fallback" disabled
             title="Set GOOGLE_CLIENT_ID in js/auth.js to enable Google sign-in">
       <span class="g-ico" aria-hidden="true">G</span>
-      <span class="authbtn__name">Sign in</span>
+      <span class="authbtn__name">Login / Sign up</span>
     </button>`;
 }
 

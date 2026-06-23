@@ -788,16 +788,6 @@ img { display: block; max-width: 100%; }
 .cc__qrcell:nth-child(2) .cc__qrimg { border-color: #229ED9; }
 .cc__qrcell figcaption { margin-top: 6px; font-size: .8rem; font-weight: 700; color: var(--ink-soft); }
 
-/* Contact button: same pressable feel as the cart pill, but neutral so it
-   doesn't read as a second primary action next to the orange cart. */
-.cartbtn--ghost {
-  background: var(--surface); color: var(--ink);
-  border: 1.5px solid var(--line);
-  box-shadow: 0 2px 0 0 var(--line);   /* pressable bottom lip */
-}
-[data-theme="dark"] .cartbtn--ghost, [data-theme="festival"] .cartbtn--ghost { color: var(--ink); }
-.cartbtn--ghost:hover { filter: none; border-color: color-mix(in srgb, var(--brand) 45%, var(--line)); }
-
 /* ===================== ORDER HISTORY POPUP ===================== */
 .hist {
   pointer-events: auto;

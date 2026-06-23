@@ -21,13 +21,15 @@
 const CONTACTS = [
   {
     title: 'CONTACT .1',
-    line: { name: 'Nameaa',     url: 'https://line.me/ti/p/~your-line-id' },
-    tg:   { name: 'Nameaaaaa',  url: 'https://t.me/your-username' },
+    // qrImg: optional custom QR image (e.g. your branded LINE/Telegram code).
+    // If the file is missing it auto-falls back to a generated QR of the URL.
+    line: { name: 'Ai Laundry',  url: 'https://line.me/ti/p/KHJri67Hl7', qrImg: 'assets/contact1-line.png' },
+    tg:   { name: '@ailaundry1', url: 'https://t.me/ailaundry1',         qrImg: 'assets/contact1-telegram.png' },
   },
   {
     title: 'CONTACT .2',
-    line: { name: 'Nameaaa',    url: 'https://line.me/ti/p/~partner-line-id' },
-    tg:   { name: 'Nameaaaaa',  url: 'https://t.me/partner-username' },
+    line: { name: 'ร้านซักรีด ศุกนิชา', url: 'https://line.me/ti/p/PvMW5jmszW', qrImg: 'assets/contact2-line.png' },
+    tg:   { name: '@ailaundry2',         url: 'https://t.me/ailaundry2',        qrImg: 'assets/contact2-telegram.png' },
   },
 ];
 
@@ -76,13 +78,17 @@ function contactCard(c, i) {
          </a>`
       : `<span class="cc__name cc__name--empty">—</span>`;
 
-  const qrCell = (side, color, label) =>
-    side && side.url
-      ? `<figure class="cc__qrcell">
-           <img class="cc__qrimg" src="${contactQrSrc(side.url, color)}" alt="${contactEscape(label)} QR" />
+  const qrCell = (side, color, label) => {
+    if (!side || !side.url) return '';
+    // Prefer a custom QR image; if it 404s, fall back to a generated one.
+    const gen = contactQrSrc(side.url, color);
+    const src = side.qrImg || gen;
+    return `<figure class="cc__qrcell">
+           <img class="cc__qrimg" src="${contactEscape(src)}" alt="${contactEscape(label)} QR"
+                onerror="this.onerror=null;this.src='${gen}'" />
            <figcaption>${contactEscape(label)}</figcaption>
-         </figure>`
-      : '';
+         </figure>`;
+  };
 
   return `
     <article class="cc" data-card="${i}">

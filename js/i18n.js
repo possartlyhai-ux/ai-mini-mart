@@ -35,6 +35,7 @@ const I18N = {
     search_placeholder: 'Search products or tags…',
     all: 'All',
     contact: 'Contact',
+    login_signup: 'Login / Sign up',
     contact_title: 'Contact us',
     contact_scan: 'Scan to chat',
     order_history: 'Order history',
