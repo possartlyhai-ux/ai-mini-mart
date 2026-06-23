@@ -5,3 +5,11 @@ uploads/*
 !uploads/.gitkeep
 backups/
 .env
+
+# Capacitor / Android build artifacts (the rest of android/ is committed)
+android/app/build/
+android/build/
+android/.gradle/
+android/local.properties
+android/app/src/main/assets/public/
+.gradle/

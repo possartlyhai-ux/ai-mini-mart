@@ -1,0 +1,6 @@
+{
+  "appId": "com.aiminimart.pos",
+  "appName": "Ai Mini-Mart POS",
+  "webDir": "public",
+  "server": { "androidScheme": "https" }
+}
