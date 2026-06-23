@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Ai Mini-Mart POS</string>
+    <string name="title_activity_main">Ai Mini-Mart POS</string>
+    <string name="package_name">com.aiminimart.pos</string>
+    <string name="custom_url_scheme">com.aiminimart.pos</string>
+</resources>
