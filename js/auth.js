@@ -21,7 +21,7 @@
  * window.onGoogleLibraryLoad when ready.
  * ========================================================================= */
 
-const GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
+const GOOGLE_CLIENT_ID = '769967902236-rh75s9nr4v3iu2fnbdmq88vgpqv5j1bm.apps.googleusercontent.com';
 
 // localStorage key kept in the same mymart.* namespace as the rest of the app.
 const AUTH_LS_KEY = 'mymart.user';
