@@ -53,7 +53,13 @@ app.use('/api/staff', require('./routes/staff'));
 app.use('/api/printers', require('./routes/printers'));
 app.use('/api/storefront', require('./routes/storefront'));
 
-app.get('/api/health', (_req, res) => res.json({ ok: true }));
+app.get('/api/health', (_req, res) => {
+  // cloudinary = is durable image upload configured? (CLOUDINARY_URL present &
+  // parseable). No secret is exposed — just whether the cloud name resolved.
+  let cloudinary = false;
+  try { cloudinary = !!require('cloudinary').v2.config().cloud_name; } catch { /* SDK missing */ }
+  res.json({ ok: true, cloudinary });
+});
 
 // 404 for unmatched API paths (let the SPA handle everything else).
 app.use('/api', (_req, res) => res.status(404).json({ error: 'Not found.' }));
