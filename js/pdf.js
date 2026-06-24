@@ -203,7 +203,8 @@ async function buildOrderSheet(order, t) {
 
   let grand = 0;
   const body = order.items.map((it) => {
-    const unit = convertRaw(it.unitTHB, cur);
+    // Honour a hand-set KHR unit price when the sheet currency is KHR (no FX).
+    const unit = (cur === 'KHR' && Number(it.unitKHR) > 0) ? Number(it.unitKHR) : convertRaw(it.unitTHB, cur);
     const lineTotal = unit * it.qty;
     grand += lineTotal;
     // Item cell prints on two lines: name, then its variant (no parentheses).

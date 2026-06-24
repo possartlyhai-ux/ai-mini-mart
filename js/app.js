@@ -58,6 +58,16 @@ function applyI18n() {
 /* ---------------- Money helper (base THB -> active currency) ---------------- */
 const money = (baseTHB) => convertPrice(baseTHB, state.currency);
 
+// Hand-set-aware price. Staff set BOTH a THB and a KHR price in the admin; if the
+// active currency is KHR and a KHR price was set (>0), show it verbatim — no FX.
+// A blank KHR (0/undefined) falls back to converting from the THB base at RATES.
+// priceMoney() returns the formatted string; amountIn() the raw active-currency number.
+function amountIn(thb, khr, qty = 1) {
+  if (state.currency === 'KHR' && Number(khr) > 0) return Number(khr) * qty;
+  return convertRaw((Number(thb) || 0) * qty, state.currency);
+}
+const priceMoney = (p, qty = 1) => formatMoney(amountIn(p.priceTHB, p.priceKHR, qty), state.currency);
+
 /* =========================================================================
  * RENDER: product grid
  * ========================================================================= */
@@ -199,7 +209,7 @@ function renderGrid() {
             <span class="unit-chip">${p.unit}</span>
           </div>
           <div class="card__price">
-            <span class="price-now">${money(p.priceTHB)}</span>
+            <span class="price-now">${priceMoney(p)}</span>
           </div>
           <button class="card__add" data-add="${p.id}" ${p.inStock ? '' : 'disabled'}>
             <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
@@ -400,7 +410,7 @@ function renderCart() {
            onerror="this.onerror=null;this.src=fallbackImg('${p.id}')" />
       <div class="line__info">
         <span class="line__name">${p.name}</span>
-        <span class="line__unit">${sub} — ${money(p.priceTHB)}</span>
+        <span class="line__unit">${sub} — ${priceMoney(p)}</span>
         <div class="stepper">
           <button data-dec="${key}" aria-label="−">−</button>
           <input class="qty-input" type="text" inputmode="numeric" pattern="[0-9]*"
@@ -409,18 +419,18 @@ function renderCart() {
         </div>
       </div>
       <div class="line__right">
-        <span class="line__total">${money(p.priceTHB * qty)}</span>
+        <span class="line__total">${priceMoney(p, qty)}</span>
         <button class="line__remove" data-remove="${key}">${t('remove')}</button>
       </div>
     </li>`;
   }).join('');
   armFallbacks(linesEl);
 
-  // Totals
-  const totalTHB = cartTotalTHB();
+  // Totals — sum in the active currency so hand-set KHR prices aren't re-converted.
+  const totalActive = cartEntries().reduce((s, e) => s + amountIn(e.product.priceTHB, e.product.priceKHR, e.qty), 0);
   $('#foot-items').textContent = cartCount();
-  $('#foot-subtotal').textContent = money(totalTHB);
-  $('#foot-total').textContent = money(totalTHB);
+  $('#foot-subtotal').textContent = formatMoney(totalActive, state.currency);
+  $('#foot-total').textContent = formatMoney(totalActive, state.currency);
 
   // Disable checkout when empty
   $('#btn-checkout').disabled = entries.length === 0;
@@ -567,7 +577,7 @@ function renderDetail() {
     <div class="pd__info">
       <button class="pd__close" data-pd-close aria-label="${t('close')}">✕</button>
       <div class="pd__price">
-        <span class="price-now">${money(p.priceTHB)}</span>
+        <span class="price-now">${priceMoney(p)}</span>
       </div>
       <h2 class="pd__name" id="pd-name">${p.name}</h2>
       <div class="pd__tags">${p.tags.map(tg => `<span class="pd__tag">${t('cat_' + tg)}</span>`).join('')}</div>
@@ -877,7 +887,7 @@ function buildOrder() {
         id: product.id,                  // kept so order history can re-add to cart
         name: product.name,
         variant: variant || '',          // kept separate so the PDF prints it on its own line
-        qty, unitTHB: product.priceTHB, img: v.img, swatch: v.swatch,
+        qty, unitTHB: product.priceTHB, unitKHR: Number(product.priceKHR) || 0, img: v.img, swatch: v.swatch,
       };
     }),
   };
@@ -987,7 +997,7 @@ function renderHistory() {
       <li class="hist__item">
         <span class="hist__qty">${it.qty}×</span>
         <span class="hist__iname">${contactEscape(it.name)}${it.variant ? ` <em>· ${contactEscape(it.variant)}</em>` : ''}</span>
-        <span class="hist__iline mono">${money(it.unitTHB * it.qty)}</span>
+        <span class="hist__iline mono">${formatMoney(amountIn(it.unitTHB, it.unitKHR, it.qty), state.currency)}</span>
       </li>`).join('');
     return `
       <article class="hist__order">
@@ -1000,7 +1010,7 @@ function renderHistory() {
         </header>
         <ul class="hist__items">${items}</ul>
         <footer class="hist__ofoot">
-          <strong class="hist__total mono">${t('total')}: ${money(o.totalTHB)}</strong>
+          <strong class="hist__total mono">${t('total')}: ${formatMoney(o.items.reduce((s, it) => s + amountIn(it.unitTHB, it.unitKHR, it.qty), 0), state.currency)}</strong>
           <button class="btn btn--primary hist__reorder" data-reorder="${contactEscape(o.id)}">${t('reorder')}</button>
         </footer>
       </article>`;
