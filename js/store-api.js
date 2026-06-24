@@ -42,6 +42,10 @@ function mapFeedProduct(p) {
     label: v.label || 'Default',
     swatch: swatchFor(v.label),
     img: v.img || '',
+    // Carry per-variant price so the shop can show the right price per option.
+    // Each backend variant sets its own THB + (optional hand-set) KHR price.
+    priceTHB: v.priceTHB != null ? Number(v.priceTHB) : undefined,
+    priceKHR: v.priceKHR != null ? Number(v.priceKHR) : undefined,
     inStock: v.inStock !== false, // carry per-variant stock so the shop can gate each one
   }));
   return {

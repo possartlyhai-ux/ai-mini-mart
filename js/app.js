@@ -68,6 +68,25 @@ function amountIn(thb, khr, qty = 1) {
 }
 const priceMoney = (p, qty = 1) => formatMoney(amountIn(p.priceTHB, p.priceKHR, qty), state.currency);
 
+// Per-variant pricing. The live backend feed sets a price on EACH variant; the
+// static data.js catalog only prices at the product level. Resolve from the
+// chosen variant when it carries its own price, else fall back to the product —
+// so picking variant 2 shows variant 2's price, and the static shop is untouched.
+function variantOf(product, variant) {
+  if (variant && typeof variant === 'object') return variant;
+  return (product.variants || []).find(x => x.label === variant) || null;
+}
+const priceTHBof = (product, variant) => {
+  const v = variantOf(product, variant);
+  return v && v.priceTHB != null ? v.priceTHB : product.priceTHB;
+};
+const priceKHRof = (product, variant) => {
+  const v = variantOf(product, variant);
+  return v && v.priceTHB != null ? v.priceKHR : product.priceKHR;
+};
+const priceMoneyV = (product, variant, qty = 1) =>
+  formatMoney(amountIn(priceTHBof(product, variant), priceKHRof(product, variant), qty), state.currency);
+
 /* =========================================================================
  * RENDER: product grid
  * ========================================================================= */
@@ -350,7 +369,7 @@ const cartEntries = () => Object.entries(state.cart)
   .filter(e => e.product);
 
 const cartCount = () => Object.values(state.cart).reduce((a, l) => a + l.qty, 0);
-const cartTotalTHB = () => cartEntries().reduce((s, e) => s + e.product.priceTHB * e.qty, 0);
+const cartTotalTHB = () => cartEntries().reduce((s, e) => s + priceTHBof(e.product, e.variant) * e.qty, 0);
 
 function persist() {
   LS.set('cart', state.cart);
@@ -410,7 +429,7 @@ function renderCart() {
            onerror="this.onerror=null;this.src=fallbackImg('${p.id}')" />
       <div class="line__info">
         <span class="line__name">${p.name}</span>
-        <span class="line__unit">${sub} — ${priceMoney(p)}</span>
+        <span class="line__unit">${sub} — ${priceMoneyV(p, v)}</span>
         <div class="stepper">
           <button data-dec="${key}" aria-label="−">−</button>
           <input class="qty-input" type="text" inputmode="numeric" pattern="[0-9]*"
@@ -419,7 +438,7 @@ function renderCart() {
         </div>
       </div>
       <div class="line__right">
-        <span class="line__total">${priceMoney(p, qty)}</span>
+        <span class="line__total">${priceMoneyV(p, v, qty)}</span>
         <button class="line__remove" data-remove="${key}">${t('remove')}</button>
       </div>
     </li>`;
@@ -427,7 +446,7 @@ function renderCart() {
   armFallbacks(linesEl);
 
   // Totals — sum in the active currency so hand-set KHR prices aren't re-converted.
-  const totalActive = cartEntries().reduce((s, e) => s + amountIn(e.product.priceTHB, e.product.priceKHR, e.qty), 0);
+  const totalActive = cartEntries().reduce((s, e) => s + amountIn(priceTHBof(e.product, e.variant), priceKHRof(e.product, e.variant), e.qty), 0);
   $('#foot-items').textContent = cartCount();
   $('#foot-subtotal').textContent = formatMoney(totalActive, state.currency);
   $('#foot-total').textContent = formatMoney(totalActive, state.currency);
@@ -577,7 +596,7 @@ function renderDetail() {
     <div class="pd__info">
       <button class="pd__close" data-pd-close aria-label="${t('close')}">✕</button>
       <div class="pd__price">
-        <span class="price-now">${priceMoney(p)}</span>
+        <span class="price-now">${priceMoneyV(p, v)}</span>
       </div>
       <h2 class="pd__name" id="pd-name">${p.name}</h2>
       <div class="pd__tags">${p.tags.map(tg => `<span class="pd__tag">${t('cat_' + tg)}</span>`).join('')}</div>
@@ -629,6 +648,10 @@ function setDetailIndex(i) {
   fadeTo($('#pd-main'), imgs[idx]);
   $('#pd-content').querySelectorAll('[data-pd-variant]').forEach((b, k) => b.classList.toggle('on', k === idx));
   $('#pd-variant-name').textContent = p.variants[idx].label;
+
+  // Reflect the selected variant's price (each variant can be priced differently).
+  const priceEl = $('#pd-content .pd__price .price-now');
+  if (priceEl) priceEl.textContent = priceMoneyV(p, p.variants[idx]);
 
   // Reflect the selected variant's stock on the badge + add button.
   const inStk = p.variants[idx].inStock !== false;
@@ -887,7 +910,7 @@ function buildOrder() {
         id: product.id,                  // kept so order history can re-add to cart
         name: product.name,
         variant: variant || '',          // kept separate so the PDF prints it on its own line
-        qty, unitTHB: product.priceTHB, unitKHR: Number(product.priceKHR) || 0, img: v.img, swatch: v.swatch,
+        qty, unitTHB: priceTHBof(product, v), unitKHR: Number(priceKHRof(product, v)) || 0, img: v.img, swatch: v.swatch,
       };
     }),
   };
