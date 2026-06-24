@@ -276,11 +276,15 @@ async function renderPOS(view) {
     } catch (err) {
       msg.textContent = err.message;
       msg.hidden = false;
+      toast(err.message, 'err'); // unmissable on mobile (the inline line is easy to miss)
     }
     scan.focus();
   };
   $('#scan-form', view).addEventListener('submit', (e) => { e.preventDefault(); posLookup(scan.value.trim()); });
-  $('#scan-cam', view).onclick = () => scanBarcode((code) => posLookup(code));
+  // Camera scan: show the scanned code in the box (replacing any old value),
+  // then look it up — same path as typing the code and pressing Enter. On a
+  // not-found code the value stays visible so staff can see what was read.
+  $('#scan-cam', view).onclick = () => scanBarcode((code) => { scan.value = code; posLookup(code); });
 
   // Browsable storefront grid: category chips + click-to-add product cards.
   await loadCategories();
