@@ -627,8 +627,8 @@ function productForm(p, onSaved) {
         <button type="button" class="btn btn-sm btn-danger" data-vremove title="Remove variant">✕</button>
       </div>
       <div class="variant-card-grid">
-        <label>Price (THB) ฿<input data-vthb type="number" step="0.01" min="0" value="${vr.sellPrice != null ? vr.sellPrice : ''}"/></label>
         <label>Price (KHR) ៛<input data-vkhr type="number" step="1" min="0" value="${vr.sellPriceKhr != null ? vr.sellPriceKhr : 0}"/></label>
+        <label>Price (THB) ฿<input data-vthb type="number" step="0.01" min="0" value="${vr.sellPrice != null ? vr.sellPrice : ''}"/></label>
         <label>Barcode<span class="bc-field"><input data-vbarcode placeholder="scan / type" value="${esc(vr.barcode || '')}"/><button type="button" class="btn btn-sm scan-btn" data-vscan title="Scan with camera">📷</button></span></label>
         <label class="checks vstock"><input type="checkbox" data-vstock ${vr.inStock === false ? '' : 'checked'}/> In stock</label>
         <div class="vimg">
