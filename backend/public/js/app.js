@@ -81,19 +81,28 @@ async function scanBarcode(onCode) {
     return;
   }
   if (!navigator.mediaDevices?.getUserMedia) { toast('No camera available.', 'err'); return; }
-  const body = node(`<div class="scanbox">
-    <video class="scan-video" playsinline muted></video>
-    <p class="muted" style="text-align:center;margin:.6rem 0 0">Point the camera at a barcode.</p>
-    <div class="modal-actions"><button type="button" class="btn" data-close>Cancel</button></div>
+  // Dedicated top-level overlay — NOT the shared #modal-root — so the scanner can
+  // be opened from inside another modal (e.g. the product editor's per-variant
+  // barcode field) without wiping that modal's DOM. Reusing openModal detached the
+  // variant row, so the scanned value had nowhere to land and the form vanished.
+  const overlay = node(`<div class="scan-overlay">
+    <div class="scanbox">
+      <video class="scan-video" playsinline muted></video>
+      <p class="muted" style="text-align:center;margin:.6rem 0 0">Point the camera at a barcode.</p>
+      <div class="modal-actions"><button type="button" class="btn" data-close>Cancel</button></div>
+    </div>
   </div>`);
-  body.querySelector('[data-close]').onclick = closeModal;
-  openModal('Scan barcode', body);
+  document.body.appendChild(overlay);
 
-  const video = body.querySelector('.scan-video');
+  const video = overlay.querySelector('.scan-video');
   let stream = null;
   let stopped = false;
-  const stop = () => { stopped = true; if (stream) stream.getTracks().forEach((t) => t.stop()); };
-  closeModal._cleanup = stop;
+  const close = () => {
+    stopped = true;
+    if (stream) stream.getTracks().forEach((t) => t.stop());
+    overlay.remove();
+  };
+  overlay.querySelector('[data-close]').onclick = close;
   try {
     stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
     video.srcObject = stream;
@@ -107,8 +116,7 @@ async function scanBarcode(onCode) {
         const codes = await detector.detect(video);
         if (codes && codes.length) {
           const code = codes[0].rawValue;
-          stop();
-          closeModal();
+          close();
           onCode(code);
           return;
         }
@@ -117,7 +125,7 @@ async function scanBarcode(onCode) {
     };
     requestAnimationFrame(tick);
   } catch (err) {
-    stop();
+    close();
     toast('Could not start the camera.', 'err');
   }
 }

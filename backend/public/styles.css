@@ -321,6 +321,12 @@ textarea { resize: vertical; min-height: 60px; }
 .bc-field input { flex: 1; min-width: 0; }
 .scan-btn { white-space: nowrap; }
 .scanbox .scan-video { width: 100%; max-height: 60vh; background: #000; border-radius: 10px; }
+/* Scanner overlay — its own layer above any modal (modal-root is z-index 50) so it
+   can be opened from inside the product editor without destroying that modal. */
+.scan-overlay { position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; padding: 1rem; }
+.scan-overlay::before { content: ''; position: absolute; inset: 0; background: rgba(30,25,20,.6); }
+.scan-overlay .scanbox { position: relative; width: 100%; max-width: 420px; background: var(--surface);
+  border-radius: 16px; padding: 1.25rem; box-shadow: 0 24px 60px -24px rgba(0,0,0,.5); }
 
 /* ---- disabled (void) bill row ---- */
 tr.bill-void td { opacity: .55; }
