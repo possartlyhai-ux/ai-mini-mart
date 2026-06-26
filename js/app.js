@@ -18,7 +18,7 @@ const state = {
   lang:      LS.get('lang', 'en'),
   currency:  LS.get('currency', 'KHR'),
   theme:     LS.get('theme', 'light'),
-  gridSize:  LS.get('grid', 'md'),          // card/view size: 'lg' | 'md' | 'sm'
+  gridSize:  LS.get('grid', 'md'),          // card/view size: 'md' | 'sm' | 'xs' | 'xxs'
   cart:      LS.get('cart', {}),            // { lineKey: { id, variant, qty } }
   favorites: LS.get('favorites', []),       // [productId]
   search:    '',
@@ -371,13 +371,12 @@ function renderMenus() {
       return out;
     };
     const icons = {
-      // Large = two big rounded boxes side by side
-      lg: `${sq(3, 5, 8, 3)}${sq(13, 5, 8, 3)}`,
-      md: grid(2, 2.6),   // the 2×2 reference, round corners
+      md: grid(2, 2.6),   // Large = 2×2 rounded boxes (the reference)
       sm: grid(3, 1.7),
       xs: grid(4, 1.2),
+      xxs: grid(5, 0.9),  // Smallest = 5×5
     };
-    const sizes = ['lg', 'md', 'sm', 'xs'];
+    const sizes = ['md', 'sm', 'xs', 'xxs'];
     viewSeg.innerHTML = sizes.map(id =>
       `<button class="viewseg__btn" data-view="${id}" aria-pressed="${state.gridSize === id}"
                title="${t('view_' + id)}" aria-label="${t('view_' + id)}">
@@ -1125,7 +1124,7 @@ async function init() {
   // changed from { id: qty } to { lineKey: {id, variant, qty} }.
   if (!CURRENCIES[state.currency]) state.currency = 'KHR';
   if (Object.values(state.cart).some(v => typeof v !== 'object' || v === null)) state.cart = {};
-  if (!['lg', 'md', 'sm', 'xs'].includes(state.gridSize)) state.gridSize = 'md';
+  if (!['md', 'sm', 'xs', 'xxs'].includes(state.gridSize)) state.gridSize = 'md';
 
   document.documentElement.setAttribute('data-theme', state.theme);
   document.documentElement.setAttribute('data-grid', state.gridSize);
