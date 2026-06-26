@@ -106,6 +106,7 @@ const I18N = {
     share_fallback: 'Sharing is not supported here, so the PDF was downloaded — send it to staff from your chat app.',
     new_order: 'Start a new order',
     // settings
+    settings: 'Settings',
     language: 'Language',
     currency: 'Currency',
     theme: 'Theme',
@@ -113,6 +114,11 @@ const I18N = {
     theme_pandan: 'Pandan',
     theme_dark: 'Dark',
     theme_festival: 'Festival',
+    view: 'View',
+    view_lg: 'Large',
+    view_md: 'Medium',
+    view_sm: 'Small',
+    view_xs: 'Smaller',
     // pdf
     pdf_order_sheet: 'ORDER SHEET',
     pdf_order_id: 'Order ID',

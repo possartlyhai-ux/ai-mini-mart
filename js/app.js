@@ -18,6 +18,7 @@ const state = {
   lang:      LS.get('lang', 'en'),
   currency:  LS.get('currency', 'KHR'),
   theme:     LS.get('theme', 'light'),
+  gridSize:  LS.get('grid', 'md'),          // card/view size: 'lg' | 'md' | 'sm'
   cart:      LS.get('cart', {}),            // { lineKey: { id, variant, qty } }
   favorites: LS.get('favorites', []),       // [productId]
   search:    '',
@@ -325,36 +326,64 @@ function renderChips() {
  * RENDER: settings menus (language / currency / theme)
  * ========================================================================= */
 function renderMenus() {
-  // Language. Native script labels (ខ្មែរ / ไทย / 中文) render via the Noto
-  // font stack; flag emoji were dropped because Windows shows them as raw
-  // region codes ("GB", "KH"). A mono code chip is consistent everywhere.
-  $('#lang-menu').innerHTML = LANGS.map(l => `
-    <button class="menu__item" role="menuitemradio" data-lang="${l.code}" aria-checked="${state.lang === l.code}">
-      <span class="menu__code mono">${l.code.toUpperCase()}</span><span>${l.label}</span>
-    </button>`).join('');
-  const active = LANGS.find(l => l.code === state.lang) || LANGS[0];
-  $('#lang-code').textContent = active.code.toUpperCase();
+  // The three switchers live as native <select> boxes inside the Settings panel
+  // (compact, like a typical "Ship to / Language / Currency" sheet). Native
+  // script labels (ខ្មែរ / ไทย / 中文) render via the Noto font stack.
+  const langSel = $('#lang-select');
+  if (langSel) {
+    langSel.innerHTML = LANGS.map(l =>
+      `<option value="${l.code}" ${state.lang === l.code ? 'selected' : ''}>${l.flag}  ${l.label}</option>`).join('');
+    langSel.value = state.lang;
+  }
 
-  // Currency
-  $('#cur-menu').innerHTML = Object.keys(CURRENCIES).map(code => `
-    <button class="menu__item" role="menuitemradio" data-cur="${code}" aria-checked="${state.currency === code}">
-      <span class="sym">${CURRENCIES[code].symbol}</span><span>${code} · ${CURRENCIES[code].label}</span>
-    </button>`).join('');
-  $('#cur-sym').textContent = CURRENCIES[state.currency].symbol;
-  $('#cur-code').textContent = state.currency;
+  // Currency — e.g. "฿  THB · Thai Baht".
+  const curSel = $('#cur-select');
+  if (curSel) {
+    curSel.innerHTML = Object.keys(CURRENCIES).map(code =>
+      `<option value="${code}" ${state.currency === code ? 'selected' : ''}>${CURRENCIES[code].symbol}  ${code} · ${CURRENCIES[code].label}</option>`).join('');
+    curSel.value = state.currency;
+  }
 
   // Theme
   const themes = [
-    { id: 'light',    emoji: '☀️', sw: '#FFF9F3' },
-    { id: 'pandan',   emoji: '🌿', sw: '#2F8B4E' },
-    { id: 'dark',     emoji: '🌙', sw: '#19120C' },
-    { id: 'festival', emoji: '🎉', sw: '#2A1245' },
+    { id: 'light',    emoji: '☀️' },
+    { id: 'pandan',   emoji: '🌿' },
+    { id: 'dark',     emoji: '🌙' },
+    { id: 'festival', emoji: '🎉' },
   ];
-  $('#theme-menu').innerHTML = themes.map(th => `
-    <button class="menu__item" role="menuitemradio" data-theme-pick="${th.id}" aria-checked="${state.theme === th.id}">
-      <span class="menu__swatch" style="background:${th.sw}"></span><span>${t('theme_' + th.id)}</span>
-    </button>`).join('');
-  $('#theme-dot').textContent = (themes.find(th => th.id === state.theme) || themes[0]).emoji;
+  const themeSel = $('#theme-select');
+  if (themeSel) {
+    themeSel.innerHTML = themes.map(th =>
+      `<option value="${th.id}" ${state.theme === th.id ? 'selected' : ''}>${th.emoji}  ${t('theme_' + th.id)}</option>`).join('');
+    themeSel.value = state.theme;
+  }
+
+  // View size — segmented buttons, each a grid of rounded squares whose count
+  // hints the density (Large = 2 big boxes … Smaller = 4×4). currentColor fill.
+  const viewSeg = $('#view-seg');
+  if (viewSeg) {
+    const sq = (x, y, s, r) => `<rect x="${x}" y="${y}" width="${s}" height="${s}" rx="${r}"/>`;
+    const grid = (n, r) => {
+      const span = 18, cell = (span - (n - 1) * 2) / n, start = 3; // 18px field, 2px gaps
+      let out = '';
+      for (let row = 0; row < n; row++) for (let col = 0; col < n; col++)
+        out += sq((start + col * (cell + 2)).toFixed(1), (start + row * (cell + 2)).toFixed(1), cell.toFixed(1), r);
+      return out;
+    };
+    const icons = {
+      // Large = two big rounded boxes side by side
+      lg: `${sq(3, 5, 8, 3)}${sq(13, 5, 8, 3)}`,
+      md: grid(2, 2.6),   // the 2×2 reference, round corners
+      sm: grid(3, 1.7),
+      xs: grid(4, 1.2),
+    };
+    const sizes = ['lg', 'md', 'sm', 'xs'];
+    viewSeg.innerHTML = sizes.map(id =>
+      `<button class="viewseg__btn" data-view="${id}" aria-pressed="${state.gridSize === id}"
+               title="${t('view_' + id)}" aria-label="${t('view_' + id)}">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">${icons[id]}</svg>
+      </button>`).join('');
+  }
 }
 
 /* =========================================================================
@@ -377,6 +406,7 @@ function persist() {
   LS.set('lang', state.lang);
   LS.set('currency', state.currency);
   LS.set('theme', state.theme);
+  LS.set('grid', state.gridSize);
 }
 
 function addToCart(id, qty = 1, variantLabel) {
@@ -516,6 +546,11 @@ function showDrawerView(view) {
 function setTheme(theme) {
   state.theme = theme;
   document.documentElement.setAttribute('data-theme', theme);
+  persist(); renderMenus();
+}
+function setGridSize(size) {
+  state.gridSize = size;
+  document.documentElement.setAttribute('data-grid', size);
   persist(); renderMenus();
 }
 function setLang(lang) {
@@ -729,6 +764,7 @@ function wire() {
     state.favView = !state.favView;
     $('#fav-toggle').setAttribute('aria-pressed', String(state.favView));
     if (state.favView) state.category = 'all';
+    closeAllMenus();   // fav lives in the Settings panel — close it after toggling
     renderChips(); renderGrid();
   });
   $('#empty-clear').addEventListener('click', () => {
@@ -765,9 +801,16 @@ function wire() {
     }
   });
 
-  $('#lang-menu').addEventListener('click', (e) => { const b = e.target.closest('[data-lang]'); if (b) { setLang(b.dataset.lang); closeAllMenus(); } });
-  $('#cur-menu').addEventListener('click', (e) => { const b = e.target.closest('[data-cur]'); if (b) { setCurrency(b.dataset.cur); closeAllMenus(); } });
-  $('#theme-menu').addEventListener('click', (e) => { const b = e.target.closest('[data-theme-pick]'); if (b) { setTheme(b.dataset.themePick); closeAllMenus(); } });
+  // Lang/currency/theme are native <select> boxes inside the Settings panel.
+  // They apply (and persist) instantly on change; the panel stays open so the
+  // user can adjust several before closing.
+  $('#lang-select')?.addEventListener('change', (e) => setLang(e.target.value));
+  $('#cur-select')?.addEventListener('change', (e) => setCurrency(e.target.value));
+  $('#theme-select')?.addEventListener('change', (e) => setTheme(e.target.value));
+  $('#view-seg')?.addEventListener('click', (e) => { const b = e.target.closest('[data-view]'); if (b) setGridSize(b.dataset.view); });
+  // Clicks inside the Settings panel shouldn't bubble to the document close-handler,
+  // so changing a setting leaves the panel open (gear re-click / outside click closes it).
+  $('.menu__panel--settings')?.addEventListener('click', (e) => e.stopPropagation());
 
   // --- Cart open/close ---
   $('#cart-open').addEventListener('click', openDrawer);
@@ -809,7 +852,7 @@ function wire() {
   $('#done-new').addEventListener('click', () => { closeDrawer(); showDrawerView('cart'); });
 
   // --- Order history popup ---
-  $('#history-open').addEventListener('click', openHistory);
+  $('#history-open').addEventListener('click', () => { closeAllMenus(); openHistory(); });
   $('#history-scrim').addEventListener('click', closeHistory);
   $('#hist-content').addEventListener('click', (e) => {
     if (e.target.closest('#history-close')) return closeHistory();
@@ -1082,8 +1125,10 @@ async function init() {
   // changed from { id: qty } to { lineKey: {id, variant, qty} }.
   if (!CURRENCIES[state.currency]) state.currency = 'KHR';
   if (Object.values(state.cart).some(v => typeof v !== 'object' || v === null)) state.cart = {};
+  if (!['lg', 'md', 'sm', 'xs'].includes(state.gridSize)) state.gridSize = 'md';
 
   document.documentElement.setAttribute('data-theme', state.theme);
+  document.documentElement.setAttribute('data-grid', state.gridSize);
 
   // Pull the live catalog from the backend if one is reachable; on any failure
   // keep the static data.js catalog so the shop always renders.
