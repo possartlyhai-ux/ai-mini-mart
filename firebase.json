@@ -5,6 +5,7 @@
       "firebase.json",
       "**/.*",
       "**/node_modules/**",
+      ".claude/**",
       "backend/**",
       "server.js",
       "package.json",
