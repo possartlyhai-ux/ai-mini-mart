@@ -23,6 +23,7 @@ const state = {
   favorites: LS.get('favorites', []),       // [productId]
   search:    '',
   category:  'all',
+  sub:       null,                          // selected subcategory id (within state.category)
   favView:   false,
 };
 
@@ -32,6 +33,16 @@ const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 /* ---------------- i18n: translate + apply ---------------- */
 // t(key): active language with English fallback so labels never go blank.
 function t(key) { return (I18N[state.lang] && I18N[state.lang][key]) || I18N.en[key] || key; }
+
+// Turn a raw backend id into a readable label: "house-households" -> "House Households".
+function humanize(id) {
+  return String(id || '').replace(/[-_]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+// Category / subcategory label. Static data.js ids have cat_*/sub_* i18n keys;
+// live backend ids (snacks, foods, ...) don't — so fall back to a humanized id
+// instead of leaking the raw "cat_snacks" key onto the chip.
+function catLabel(id) { const k = 'cat_' + id; return (I18N[state.lang] && I18N[state.lang][k]) || I18N.en[k] || humanize(id); }
+function subLabel(id) { const k = 'sub_' + id; return (I18N[state.lang] && I18N[state.lang][k]) || I18N.en[k] || humanize(id); }
 
 // tPDF(key): English-locked translator for the PDF order sheet. jsPDF's built-in
 // Helvetica only covers Latin (WinAnsi), so Khmer/Thai/Chinese labels print as
@@ -91,15 +102,38 @@ const priceMoneyV = (product, variant, qty = 1) =>
 /* =========================================================================
  * RENDER: product grid
  * ========================================================================= */
+// Searchable text for a product: its name + every category and subcategory it
+// belongs to, as raw ids AND human labels in the current language and English.
+// That lets "audio", "Electronics", a Khmer label, or a partial like "audi" all
+// land on the right items regardless of the page language.
+function searchHaystack(p) {
+  const parts = [p.name];
+  p.tags.forEach(tg => {
+    parts.push(tg, catLabel(tg));
+    if (I18N.en['cat_' + tg]) parts.push(I18N.en['cat_' + tg]);
+  });
+  if (p.sub) {
+    parts.push(p.sub, subLabel(p.sub));
+    if (I18N.en['sub_' + p.sub]) parts.push(I18N.en['sub_' + p.sub]);
+  }
+  return parts.join(' ').toLowerCase();
+}
+
 function filteredProducts() {
   const q = state.search.trim().toLowerCase();
+  const tokens = q ? q.split(/\s+/).filter(Boolean) : [];
   return PRODUCTS.filter(p => {
     if (state.favView && !state.favorites.includes(p.id)) return false;
-    if (state.category !== 'all' && !p.tags.includes(state.category)) return false;
-    if (q) {
-      const hay = (p.name + ' ' + p.tags.join(' ')).toLowerCase();
-      if (!hay.includes(q)) return false;
+    // An active search looks across the WHOLE catalog (name + category + sub,
+    // ids + localized labels). The category/sub-tag chip filters step aside so
+    // a global term like "audio" isn't hidden by the selected chip. Every typed
+    // word must appear, each matched as a substring so "audi" still finds Audio.
+    if (tokens.length) {
+      const hay = searchHaystack(p);
+      return tokens.every(tok => hay.includes(tok));
     }
+    if (state.category !== 'all' && !p.tags.includes(state.category)) return false;
+    if (state.sub && p.sub !== state.sub) return false;
     return true;
   });
 }
@@ -183,9 +217,11 @@ function renderGrid() {
 
   // View heading + count
   $('#view-title').textContent = state.favView ? t('favorites')
-    : state.category === 'all' ? t('all') : t('cat_' + state.category);
+    : state.search.trim() ? `“${state.search.trim()}”`
+    : state.category === 'all' ? t('all') : catLabel(state.category);
   $('#result-count').textContent = list.length;
   renderBanner(list.length);
+  renderSubnav();
 
   // Empty state
   const empty = $('#empty');
@@ -199,7 +235,7 @@ function renderGrid() {
 
   grid.innerHTML = list.map(p => {
     const fav = state.favorites.includes(p.id);
-    const tags = p.tags.slice(0, 2).map(tg => `<span class="tag">${t('cat_' + tg)}</span>`).join('');
+    const tags = p.tags.slice(0, 2).map(tg => `<span class="tag">${catLabel(tg)}</span>`).join('');
     const imgs = productImages(p);
     const frame = frames[p.id] || 0;
     const dots = imgs.length > 1
@@ -291,10 +327,12 @@ function renderBanner(count) {
   let title, icon, pal;
   if (state.favView) {
     title = t('favorites'); icon = '♥'; pal = ['#F43F5E', '#BE123C'];
+  } else if (state.search.trim()) {
+    title = `“${state.search.trim()}”`; icon = '🔍'; pal = ['#FF8A00', '#F97316'];
   } else if (state.category === 'all') {
     title = t('all'); icon = '🛍️'; pal = ['#FF8A00', '#F97316'];
   } else {
-    title = t('cat_' + state.category);
+    title = catLabel(state.category);
     icon = (CATEGORIES.find(c => c.id === state.category) || {}).icon || '🛍️';
     pal = CAT_BANNER[state.category] || ['#FF8A00', '#F97316'];
   }
@@ -317,9 +355,48 @@ function renderChips() {
       <span class="chip__icon">🛍️</span><span>${t('all')}</span></button>`;
   const cats = CATEGORIES.map(c => `
       <button class="chip" role="tab" data-cat="${c.id}" aria-selected="${state.category === c.id && !state.favView}">
-        <span class="chip__icon">${c.icon}</span><span>${t('cat_' + c.id)}</span>
+        <span class="chip__icon">${c.icon}</span><span>${catLabel(c.id)}</span>
       </button>`).join('');
   chips.innerHTML = all + cats;
+}
+
+/* =========================================================================
+ * RENDER: breadcrumb + subcategory tag bar
+ * -------------------------------------------------------------------------
+ * Shows only when a single category is selected (not "All", not Favorites):
+ *   Home › Category › [Sub]      ← arrow-tag breadcrumb
+ *   [ sub ] [ sub ] [ sub ]      ← sibling sub-tags, active one highlighted
+ * Sub-tags list only this category's subcategories that actually have stock,
+ * each with a live product count. Clicking a sub filters the grid; clicking
+ * the active sub again (or the Category crumb) clears the sub filter.
+ * ========================================================================= */
+function renderSubnav() {
+  const el = $('#subnav');
+  if (!el) return;
+
+  const cat = CATEGORIES.find(c => c.id === state.category);
+  const hide = () => { el.hidden = true; el.innerHTML = ''; };
+  if (state.favView || state.search.trim() || state.category === 'all' || !cat || !cat.subs) return hide();
+
+  // Only subcategories with at least one in-category product (with counts).
+  const subs = cat.subs
+    .map(s => ({ id: s, n: PRODUCTS.filter(p => p.tags.includes(cat.id) && p.sub === s).length }))
+    .filter(s => s.n > 0);
+  if (!subs.length) return hide();
+
+  const crumbs = [
+    `<button class="crumb" data-crumb="home">${t('nav_home')}</button>`,
+    `<button class="crumb${state.sub ? '' : ' crumb--current'}" data-crumb="cat">${catLabel(cat.id)}</button>`,
+  ];
+  if (state.sub) crumbs.push(`<span class="crumb crumb--current">${subLabel(state.sub)}</span>`);
+
+  const tags = subs.map(s =>
+    `<button class="subtag${state.sub === s.id ? ' is-active' : ''}" data-sub="${s.id}" aria-pressed="${state.sub === s.id}">
+       <span>${subLabel(s.id)}</span><span class="subtag__n">${s.n}</span>
+     </button>`).join('');
+
+  el.innerHTML = `<div class="crumbs">${crumbs.join('')}</div><div class="subtags">${tags}</div>`;
+  el.hidden = false;
 }
 
 /* =========================================================================
@@ -633,7 +710,7 @@ function renderDetail() {
         <span class="price-now">${priceMoneyV(p, v)}</span>
       </div>
       <h2 class="pd__name" id="pd-name">${p.name}</h2>
-      <div class="pd__tags">${p.tags.map(tg => `<span class="pd__tag">${t('cat_' + tg)}</span>`).join('')}</div>
+      <div class="pd__tags">${p.tags.map(tg => `<span class="pd__tag">${catLabel(tg)}</span>`).join('')}</div>
       <div class="pd__row">
         <span id="pd-stock" class="stock ${v.inStock !== false ? 'stock--in' : 'stock--out'}">${v.inStock !== false ? t('in_stock') : t('out_of_stock')}</span>
       </div>
@@ -753,22 +830,42 @@ function wire() {
     const chip = e.target.closest('[data-cat]');
     if (!chip) return;
     state.category = chip.dataset.cat;
+    state.sub = null;                 // switching category clears any sub filter
     state.favView = false;
     $('#fav-toggle').setAttribute('aria-pressed', 'false');
     renderChips(); renderGrid();
+  });
+
+  // --- Breadcrumb + subcategory tags ---
+  $('#subnav').addEventListener('click', (e) => {
+    const sub = e.target.closest('[data-sub]');
+    if (sub) {
+      const id = sub.dataset.sub;
+      state.sub = state.sub === id ? null : id;   // re-click the active sub to clear it
+      renderGrid();
+      return;
+    }
+    const crumb = e.target.closest('[data-crumb]');
+    if (!crumb) return;
+    if (crumb.dataset.crumb === 'home') {
+      state.category = 'all'; state.sub = null; renderChips();
+    } else {                                        // "cat" crumb → back to all of this category
+      state.sub = null;
+    }
+    renderGrid();
   });
 
   // --- Favorites view toggle ---
   $('#fav-toggle').addEventListener('click', () => {
     state.favView = !state.favView;
     $('#fav-toggle').setAttribute('aria-pressed', String(state.favView));
-    if (state.favView) state.category = 'all';
+    if (state.favView) { state.category = 'all'; state.sub = null; }
     closeAllMenus();   // fav lives in the Settings panel — close it after toggling
     renderChips(); renderGrid();
   });
   $('#empty-clear').addEventListener('click', () => {
     state.search = ''; $('#search').value = '';
-    state.category = 'all'; state.favView = false;
+    state.category = 'all'; state.sub = null; state.favView = false;
     $('#fav-toggle').setAttribute('aria-pressed', 'false');
     renderChips(); renderGrid();
   });

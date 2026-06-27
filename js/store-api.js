@@ -52,6 +52,7 @@ function mapFeedProduct(p) {
     id: p.id,
     name: p.name,
     tags: Array.isArray(p.tags) ? p.tags : [],
+    sub: p.sub || null, // drives the breadcrumb + sub-tag bar (renderSubnav)
     priceTHB: Number(p.priceTHB) || 0,
     priceKHR: p.priceKHR != null ? Number(p.priceKHR) : undefined,
     inStock: variants.some((v) => v.inStock), // product is "in stock" if ANY variant is
@@ -78,7 +79,7 @@ async function hydrateCatalog() {
   products.forEach((p) => PRODUCTS.push(mapFeedProduct(p)));
   if (Array.isArray(categories) && categories.length) {
     CATEGORIES.length = 0;
-    categories.forEach((c) => CATEGORIES.push({ id: c.id, icon: c.icon || '🛍️', banner: c.banner }));
+    categories.forEach((c) => CATEGORIES.push({ id: c.id, icon: c.icon || '🛍️', banner: c.banner, subs: Array.isArray(c.subs) ? c.subs : [] }));
   }
   return true;
 }

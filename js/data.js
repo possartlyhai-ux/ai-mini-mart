@@ -22,13 +22,16 @@
  * ========================================================================= */
 
 // Category ids are also i18n keys (see js/i18n.js -> cat_*).
+// `subs` lists each category's subcategory ids (i18n keys sub_*). A product's
+// `sub` (one id, belonging to the product's PRIMARY category = tags[0]) drives
+// the breadcrumb + sub-tag bar above the grid (renderSubnav in app.js).
 const CATEGORIES = [
-  { id: 'electronics', icon: '🔌' },
-  { id: 'home',        icon: '🏠' },
-  { id: 'apparel',     icon: '👕' },
-  { id: 'accessories', icon: '🎒' },
-  { id: 'tools',       icon: '🔧' },
-  { id: 'grocery',     icon: '🛒' },
+  { id: 'electronics', icon: '🔌', subs: ['audio', 'computing', 'lighting', 'wearables', 'power'] },
+  { id: 'home',        icon: '🏠', subs: ['kitchen', 'bedding'] },
+  { id: 'apparel',     icon: '👕', subs: ['tops', 'socks'] },
+  { id: 'accessories', icon: '🎒', subs: ['bags', 'drinkware'] },
+  { id: 'tools',       icon: '🔧', subs: ['handtools', 'garden', 'powertools'] },
+  { id: 'grocery',     icon: '🛒', subs: ['coffee', 'pantry'] },
 ];
 
 // picsum gives a stable image per `seed`. We request a square crop.
@@ -39,7 +42,7 @@ function productImages(p) { return p.variants.map(v => v.img); }
 
 const PRODUCTS = [
   {
-    id: 'p01', name: 'Aurora Wireless Earbuds', tags: ['electronics', 'accessories'],
+    id: 'p01', name: 'Aurora Wireless Earbuds', tags: ['electronics', 'accessories'], sub: 'audio',
     priceTHB: 1290, inStock: true, unit: '1 pair', variantLabel: 'Color',
     variants: [
       { label: 'Cloud White', swatch: '#EDEDED', img: pic('mymart-earbuds-white') },
@@ -47,7 +50,7 @@ const PRODUCTS = [
     ],
   },
   {
-    id: 'p02', name: 'Terra Ceramic Pour-Over Set', tags: ['home'],
+    id: 'p02', name: 'Terra Ceramic Pour-Over Set', tags: ['home'], sub: 'kitchen',
     priceTHB: 890, inStock: true, unit: '600 ml', variantLabel: 'Color',
     variants: [
       { label: 'Clay', swatch: '#C96F4A', img: pic('mymart-pourover-clay') },
@@ -55,7 +58,7 @@ const PRODUCTS = [
     ],
   },
   {
-    id: 'p03', name: 'Drift Linen Overshirt', tags: ['apparel'],
+    id: 'p03', name: 'Drift Linen Overshirt', tags: ['apparel'], sub: 'tops',
     priceTHB: 1150, inStock: true, unit: 'Unisex', variantLabel: 'Color',
     variants: [
       { label: 'Olive', swatch: '#6B7253', img: pic('mymart-overshirt-olive') },
@@ -63,7 +66,7 @@ const PRODUCTS = [
     ],
   },
   {
-    id: 'p04', name: 'Nimbus 65% Mechanical Keyboard', tags: ['electronics'],
+    id: 'p04', name: 'Nimbus 65% Mechanical Keyboard', tags: ['electronics'], sub: 'computing',
     priceTHB: 2490, inStock: true, unit: '68 keys', variantLabel: 'Color',
     variants: [
       { label: 'Slate', swatch: '#3A4A5A', img: pic('mymart-keyboard-slate') },
@@ -71,7 +74,7 @@ const PRODUCTS = [
     ],
   },
   {
-    id: 'p05', name: 'Harvest Cotton Tote', tags: ['accessories', 'apparel'],
+    id: 'p05', name: 'Harvest Cotton Tote', tags: ['accessories', 'apparel'], sub: 'bags',
     priceTHB: 390, inStock: true, unit: '14 L', variantLabel: 'Color',
     variants: [
       { label: 'Natural', swatch: '#E3D8BE', img: pic('mymart-tote-natural') },
@@ -79,7 +82,7 @@ const PRODUCTS = [
     ],
   },
   {
-    id: 'p06', name: 'Forge 24-piece Driver Kit', tags: ['tools'],
+    id: 'p06', name: 'Forge 24-piece Driver Kit', tags: ['tools'], sub: 'handtools',
     priceTHB: 690, inStock: false, unit: '24 pcs', variantLabel: 'Finish',
     variants: [
       { label: 'Graphite', swatch: '#2B2B2B', img: pic('mymart-driver-graphite') },
@@ -87,7 +90,7 @@ const PRODUCTS = [
     ],
   },
   {
-    id: 'p07', name: 'Lumen Smart Desk Lamp', tags: ['electronics', 'home'],
+    id: 'p07', name: 'Lumen Smart Desk Lamp', tags: ['electronics', 'home'], sub: 'lighting',
     priceTHB: 1090, inStock: true, unit: '5 W', variantLabel: 'Color',
     variants: [
       { label: 'White', swatch: '#F4F4F4', img: pic('mymart-lamp-white') },
@@ -95,7 +98,7 @@ const PRODUCTS = [
     ],
   },
   {
-    id: 'p08', name: 'Stovetop Espresso Maker', tags: ['home', 'grocery'],
+    id: 'p08', name: 'Stovetop Espresso Maker', tags: ['home', 'grocery'], sub: 'kitchen',
     priceTHB: 760, inStock: true, unit: '300 ml', variantLabel: 'Size',
     variants: [
       { label: '3-cup', swatch: '#C8C8C8', img: pic('mymart-moka-3') },
@@ -103,7 +106,7 @@ const PRODUCTS = [
     ],
   },
   {
-    id: 'p09', name: 'Trailhead 20L Daypack', tags: ['accessories'],
+    id: 'p09', name: 'Trailhead 20L Daypack', tags: ['accessories'], sub: 'bags',
     priceTHB: 1390, inStock: true, unit: '20 L', variantLabel: 'Color',
     variants: [
       { label: 'Black', swatch: '#232323', img: pic('mymart-daypack-black') },
@@ -112,7 +115,7 @@ const PRODUCTS = [
     ],
   },
   {
-    id: 'p10', name: 'Pulse Fitness Smartwatch', tags: ['electronics', 'accessories'],
+    id: 'p10', name: 'Pulse Fitness Smartwatch', tags: ['electronics', 'accessories'], sub: 'wearables',
     priceTHB: 1990, inStock: true, unit: '1.4 in', variantLabel: 'Color',
     variants: [
       { label: 'Midnight', swatch: '#1B2430', img: pic('mymart-watch-midnight') },
@@ -120,7 +123,7 @@ const PRODUCTS = [
     ],
   },
   {
-    id: 'p11', name: 'Garden Stainless Tool Trio', tags: ['tools', 'home'],
+    id: 'p11', name: 'Garden Stainless Tool Trio', tags: ['tools', 'home'], sub: 'garden',
     priceTHB: 540, inStock: true, unit: '3 pcs', variantLabel: 'Handle',
     variants: [
       { label: 'Wood', swatch: '#9B6B43', img: pic('mymart-garden-wood') },
@@ -128,7 +131,7 @@ const PRODUCTS = [
     ],
   },
   {
-    id: 'p12', name: 'Everyday Merino Crew Socks (3-pack)', tags: ['apparel'],
+    id: 'p12', name: 'Everyday Merino Crew Socks (3-pack)', tags: ['apparel'], sub: 'socks',
     priceTHB: 320, inStock: true, unit: '3 pairs', variantLabel: 'Size',
     variants: [
       { label: 'M', swatch: '#D8D8D8', img: pic('mymart-socks-m') },
@@ -136,7 +139,7 @@ const PRODUCTS = [
     ],
   },
   {
-    id: 'p13', name: 'Highland Single-Origin Coffee 250g', tags: ['grocery'],
+    id: 'p13', name: 'Highland Single-Origin Coffee 250g', tags: ['grocery'], sub: 'coffee',
     priceTHB: 280, inStock: true, unit: '250 g', variantLabel: 'Roast',
     variants: [
       { label: 'Medium', swatch: '#8A5A3B', img: pic('mymart-coffee-medium') },
@@ -144,7 +147,7 @@ const PRODUCTS = [
     ],
   },
   {
-    id: 'p14', name: 'Cascade Insulated Bottle 750ml', tags: ['accessories', 'home'],
+    id: 'p14', name: 'Cascade Insulated Bottle 750ml', tags: ['accessories', 'home'], sub: 'drinkware',
     priceTHB: 450, inStock: true, unit: '750 ml', variantLabel: 'Color',
     variants: [
       { label: 'Glacier',  swatch: '#BCD6E0', img: pic('mymart-bottle-glacier') },
@@ -153,7 +156,7 @@ const PRODUCTS = [
     ],
   },
   {
-    id: 'p15', name: 'Atlas Cordless Drill 18V', tags: ['tools'],
+    id: 'p15', name: 'Atlas Cordless Drill 18V', tags: ['tools'], sub: 'powertools',
     priceTHB: 2190, inStock: false, unit: '18 V', variantLabel: 'Color',
     variants: [
       { label: 'Yellow', swatch: '#F2B705', img: pic('mymart-drill-yellow') },
@@ -161,7 +164,7 @@ const PRODUCTS = [
     ],
   },
   {
-    id: 'p16', name: 'Cloud Linen Bedding Set', tags: ['home', 'apparel'],
+    id: 'p16', name: 'Cloud Linen Bedding Set', tags: ['home', 'apparel'], sub: 'bedding',
     priceTHB: 1690, inStock: true, unit: 'Queen', variantLabel: 'Color',
     variants: [
       { label: 'White', swatch: '#F4F1EA', img: pic('mymart-bedding-white') },
@@ -170,7 +173,7 @@ const PRODUCTS = [
     ],
   },
   {
-    id: 'p17', name: 'Pocket Power Bank 10000mAh', tags: ['electronics'],
+    id: 'p17', name: 'Pocket Power Bank 10000mAh', tags: ['electronics'], sub: 'power',
     priceTHB: 590, inStock: true, unit: '10000 mAh', variantLabel: 'Color',
     variants: [
       { label: 'White', swatch: '#F0F0F0', img: pic('mymart-power-white') },
@@ -178,7 +181,7 @@ const PRODUCTS = [
     ],
   },
   {
-    id: 'p18', name: 'Orchard Raw Honey', tags: ['grocery'],
+    id: 'p18', name: 'Orchard Raw Honey', tags: ['grocery'], sub: 'pantry',
     priceTHB: 350, inStock: true, unit: '500 g', variantLabel: 'Size',
     variants: [
       { label: '500 g', swatch: '#E0A12B', img: pic('mymart-honey-500') },
