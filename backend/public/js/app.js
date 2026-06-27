@@ -421,16 +421,17 @@ async function charge() {
 async function renderProducts(view) {
   await loadCategories();
   view.innerHTML = `
-    <div class="page-head">
-      <h2>📦 Products</h2><div class="spacer"></div>
-      ${can('products:write') ? '<button id="add-prod" class="btn btn-primary">+ Add product</button>' : ''}
+    <div class="prod-stickyhead">
+      <div class="page-head">
+        <h2>📦 Products</h2><div class="spacer"></div>
+        ${can('products:write') ? '<button id="add-prod" class="btn btn-primary">+ Add product</button>' : ''}
+      </div>
+      <div class="toolbar">
+        <input id="p-search" class="grow" placeholder="Search name, SKU, barcode…" />
+        <select id="p-cat"><option value="">All categories</option>${state.categories.map((c) => `<option value="${esc(c.slug)}">${esc(c.label)}</option>`).join('')}</select>
+        <select id="p-stock"><option value="">Any stock</option><option value="in">In stock</option><option value="out">Out of stock</option></select>
+      </div>
     </div>
-    <div class="toolbar">
-      <input id="p-search" class="grow" placeholder="Search name, SKU, barcode…" />
-      <select id="p-cat"><option value="">All categories</option>${state.categories.map((c) => `<option value="${esc(c.slug)}">${esc(c.label)}</option>`).join('')}</select>
-      <select id="p-stock"><option value="">Any stock</option><option value="in">In stock</option><option value="out">Out of stock</option></select>
-    </div>
-    <p class="muted" style="margin:-.5rem 0 1rem;font-size:.8rem">Drag the ⠿ handle to set the order products appear in the storefront (top = first). Reordering is off while a search or filter is active.</p>
     <div id="p-table" class="table-wrap"></div>`;
 
   const load = async () => {
@@ -730,7 +731,6 @@ async function renderCategories(view) {
   view.innerHTML = `
     <div class="page-head"><h2>🏷️ Categories</h2><div class="spacer"></div>
       <button id="add-cat" class="btn btn-primary">+ Add category</button></div>
-    <p class="muted" style="margin:-.5rem 0 1rem;font-size:.85rem">Categories drive the storefront filters. Drag the ⠿ handle to reorder. Removing a category just unlists it — products keep working.</p>
     <div id="c-table" class="table-wrap"></div>`;
   const load = async () => {
     await loadCategories(true);
@@ -1091,7 +1091,6 @@ async function renderPrinters(view) {
   const canManage = can('printers:manage');
   view.innerHTML = `
     <div class="page-head"><h2>🖨️ Printer Settings</h2><div class="spacer"></div>${canManage ? '<button id="add-pr" class="btn btn-primary">+ Add printer</button>' : ''}</div>
-    <p class="muted">v1 “print” = a browser-printed HTML receipt sized to the chosen paper width. ESC/POS integration is a future extension.</p>
     <div id="pr-table" class="table-wrap"></div>`;
   const load = async () => {
     const { printers } = await API.get('/printers');
