@@ -18,6 +18,12 @@ async function categorySlugs() {
   return cats.map((c) => c.slug);
 }
 
+// Live subcategory slugs — used to validate a product's `sub`.
+async function subcategorySlugs() {
+  const subs = await prisma.subcategory.findMany({ select: { slug: true } });
+  return subs.map((s) => s.slug);
+}
+
 const router = express.Router();
 const withVariants = { variants: { orderBy: { sortOrder: 'asc' } } };
 
@@ -69,8 +75,8 @@ function parseTags(value, allowedSlugs) {
   return [...new Set(arr.filter((t) => allowedSlugs.includes(t)))];
 }
 
-// Product-only fields (name, unit "Type", categories, visibility, order).
-function buildProductData(body, { partial, allowedSlugs }) {
+// Product-only fields (name, unit "Type", categories, subcategory, visibility, order).
+function buildProductData(body, { partial, allowedSlugs, allowedSubs }) {
   const data = {};
   if (!partial || body.name !== undefined) data.name = v.requireString(body.name, 'Name', { max: 160 });
   if (body.sku !== undefined) data.sku = v.optionalString(body.sku, 'SKU', { max: 64 });
@@ -79,6 +85,11 @@ function buildProductData(body, { partial, allowedSlugs }) {
   if (body.isVisible !== undefined) data.isVisible = !!body.isVisible;
   if (body.isActive !== undefined) data.isActive = !!body.isActive;
   if (body.tags !== undefined) data.tagsJson = JSON.stringify(parseTags(body.tags, allowedSlugs || []));
+  // sub: a single subcategory slug; unknown/blank -> null (stale slugs are ignored downstream).
+  if (body.sub !== undefined) {
+    const sub = v.optionalString(body.sub, 'Subcategory', { max: 80 });
+    data.sub = sub && (allowedSubs || []).includes(sub) ? sub : null;
+  }
   return data;
 }
 
@@ -244,8 +255,8 @@ router.get('/:id', requireAuth, requirePermission(PERMISSIONS.PRODUCTS_READ), as
 // =============================================================================
 router.post('/', requireAuth, requirePermission(PERMISSIONS.PRODUCTS_WRITE), async (req, res, next) => {
   try {
-    const allowedSlugs = await categorySlugs();
-    const productData = buildProductData(req.body, { partial: false, allowedSlugs });
+    const [allowedSlugs, allowedSubs] = await Promise.all([categorySlugs(), subcategorySlugs()]);
+    const productData = buildProductData(req.body, { partial: false, allowedSlugs, allowedSubs });
     const variants = buildVariants(req.body.variants); // validates >= 1 up front
 
     if (productData.sortOrder === undefined) {
@@ -270,8 +281,8 @@ router.post('/', requireAuth, requirePermission(PERMISSIONS.PRODUCTS_WRITE), asy
 router.patch('/:id', requireAuth, requirePermission(PERMISSIONS.PRODUCTS_WRITE), async (req, res, next) => {
   try {
     const id = Number(req.params.id);
-    const allowedSlugs = await categorySlugs();
-    const productData = buildProductData(req.body, { partial: true, allowedSlugs });
+    const [allowedSlugs, allowedSubs] = await Promise.all([categorySlugs(), subcategorySlugs()]);
+    const productData = buildProductData(req.body, { partial: true, allowedSlugs, allowedSubs });
     const variants = req.body.variants !== undefined ? buildVariants(req.body.variants) : null;
 
     const product = await prisma.$transaction(async (tx) => {

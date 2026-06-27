@@ -20,14 +20,29 @@ function slugify(label) {
     .replace(/^-+|-+$/g, '');
 }
 
+function serializeSubcategory(s) {
+  return { id: s.id, categoryId: s.categoryId, slug: s.slug, label: s.label, sortOrder: s.sortOrder };
+}
+
 function serializeCategory(c) {
-  return { id: c.id, slug: c.slug, label: c.label, icon: c.icon, imageUrl: c.imageUrl || null, sortOrder: c.sortOrder };
+  return {
+    id: c.id,
+    slug: c.slug,
+    label: c.label,
+    icon: c.icon,
+    imageUrl: c.imageUrl || null,
+    sortOrder: c.sortOrder,
+    subcategories: (c.subcategories || []).slice().sort((a, b) => a.sortOrder - b.sortOrder).map(serializeSubcategory),
+  };
 }
 
 // List — anyone who can read products (used by the product form + filters).
 router.get('/', requireAuth, requirePermission(PERMISSIONS.PRODUCTS_READ), async (_req, res, next) => {
   try {
-    const cats = await prisma.category.findMany({ orderBy: [{ sortOrder: 'asc' }, { label: 'asc' }] });
+    const cats = await prisma.category.findMany({
+      orderBy: [{ sortOrder: 'asc' }, { label: 'asc' }],
+      include: { subcategories: { orderBy: { sortOrder: 'asc' } } },
+    });
     res.json({ categories: cats.map(serializeCategory) });
   } catch (err) {
     next(err);
@@ -46,7 +61,10 @@ router.post('/', requireAuth, requirePermission(PERMISSIONS.CATEGORIES_MANAGE), 
       req.body.sortOrder !== undefined
         ? v.intNonNeg(req.body.sortOrder, 'Sort order')
         : (max._max.sortOrder ?? -1) + 1;
-    const category = await prisma.category.create({ data: { slug, label, icon, imageUrl, sortOrder } });
+    const category = await prisma.category.create({
+      data: { slug, label, icon, imageUrl, sortOrder },
+      include: { subcategories: { orderBy: { sortOrder: 'asc' } } },
+    });
     res.status(201).json({ category: serializeCategory(category) });
   } catch (err) {
     next(translateUnique(err));
@@ -81,7 +99,11 @@ router.patch('/:id', requireAuth, requirePermission(PERMISSIONS.CATEGORIES_MANAG
     if (req.body.icon !== undefined) data.icon = v.optionalString(req.body.icon, 'Icon', { max: 8 });
     if (req.body.imageUrl !== undefined) data.imageUrl = v.optionalString(req.body.imageUrl, 'Banner image', { max: 600 });
     if (req.body.sortOrder !== undefined) data.sortOrder = v.intNonNeg(req.body.sortOrder, 'Sort order');
-    const category = await prisma.category.update({ where: { id: Number(req.params.id) }, data });
+    const category = await prisma.category.update({
+      where: { id: Number(req.params.id) },
+      data,
+      include: { subcategories: { orderBy: { sortOrder: 'asc' } } },
+    });
     res.json({ category: serializeCategory(category) });
   } catch (err) {
     next(translateUnique(err));

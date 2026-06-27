@@ -594,6 +594,16 @@ function wireCatReorder(tbody) {
 function productForm(p, onSaved) {
   const isNew = !p;
   const tags = (p && p.tags) || [];
+  const curSub = (p && p.sub) || '';
+  // Subcategory <optgroup>s, one per category that has subs. A product's sub
+  // belongs to its primary category, but we list all so staff can pick freely;
+  // the storefront sub-nav only surfaces it under the primary category.
+  const subGroups = state.categories
+    .filter((c) => (c.subcategories || []).length)
+    .map((c) => `<optgroup label="${esc(c.label)}">${(c.subcategories || [])
+      .map((s) => `<option value="${esc(s.slug)}" ${s.slug === curSub ? 'selected' : ''}>${esc(s.label)}</option>`)
+      .join('')}</optgroup>`)
+    .join('');
   const form = node(`<form>
     <div class="form-grid">
       <label class="full">Item name<input name="name" required value="${esc(p?.name || '')}"/></label>
@@ -604,6 +614,11 @@ function productForm(p, onSaved) {
           ? state.categories.map((c) => `<label><input type="checkbox" name="tags" value="${esc(c.slug)}" ${tags.includes(c.slug) ? 'checked' : ''}/>${esc(c.label)}</label>`).join('')
           : '<span class="muted">No categories yet — add some on the Categories page.</span>'}</div>
       </div>
+      <label class="full">Subcategory
+        <select name="sub">${subGroups
+          ? `<option value="">— None —</option>${subGroups}`
+          : '<option value="">— No subcategories yet —</option>'}</select>
+      </label>
       <div class="full">
         <div class="muted" style="margin-bottom:.3rem">Variants — each has its own price, barcode, image &amp; stock</div>
         <div class="variants" data-variants></div>
@@ -690,6 +705,7 @@ function productForm(p, onSaved) {
         unit: fd.get('unit'),
         isVisible: fd.get('isVisible') === 'on',
         tags: fd.getAll('tags'),
+        sub: fd.get('sub') || '',
         variants,
       };
       if (isNew) await API.post('/products', body);
@@ -721,20 +737,26 @@ async function renderCategories(view) {
     const wrap = $('#c-table', view);
     if (!state.categories.length) { wrap.innerHTML = '<div class="empty">No categories yet.</div>'; return; }
     wrap.innerHTML = `
-      <table><thead><tr><th></th><th>Icon</th><th>Label</th><th>Slug</th><th>Banner</th><th></th></tr></thead>
+      <table><thead><tr><th></th><th>Icon</th><th>Label</th><th>Slug</th><th>Subcategories</th><th>Banner</th><th></th></tr></thead>
       <tbody>${state.categories.map((c) => `
         <tr draggable="true" data-id="${c.id}">
           <td class="grip-cell"><span class="grip" title="Drag to reorder">⠿</span></td>
           <td style="font-size:1.2rem">${esc(c.icon || '')}</td>
           <td><strong>${esc(c.label)}</strong></td>
           <td><small class="muted">${esc(c.slug)}</small></td>
+          <td>${(c.subcategories || []).length
+            ? `<small class="muted">${(c.subcategories || []).map((s) => `<span class="tag-chip">${esc(s.label)}</span>`).join('')}</small>`
+            : '<small class="muted">—</small>'}</td>
           <td>${c.imageUrl ? `<img class="cat-banner-thumb" src="${esc(c.imageUrl)}" alt="" onerror="this.style.display='none'"/>` : '<small class="muted">—</small>'}</td>
           <td><div class="row-actions">
+            <button class="btn btn-sm" data-subs="${c.id}">Subs</button>
             <button class="btn btn-sm" data-edit="${c.id}">Edit</button>
             <button class="btn btn-sm btn-danger" data-del="${c.id}">Del</button>
           </div></td>
         </tr>`).join('')}</tbody></table>`;
     wireCatReorder(wrap.querySelector('tbody'));
+    wrap.querySelectorAll('[data-subs]').forEach((el) => (el.onclick = () =>
+      subcategoryManager(state.categories.find((x) => x.id === Number(el.dataset.subs)), load)));
     wrap.querySelectorAll('[data-edit]').forEach((el) => (el.onclick = () =>
       categoryForm(state.categories.find((x) => x.id === Number(el.dataset.edit)), load)));
     wrap.querySelectorAll('[data-del]').forEach((el) => (el.onclick = async () => {
@@ -796,6 +818,76 @@ function categoryForm(c, onSaved) {
     } catch (err) { errBox.textContent = err.message; errBox.hidden = false; }
   });
   openModal(isNew ? 'Add category' : 'Edit category', form);
+}
+
+// Manage one category's subcategories: add / rename / remove. Each action hits
+// the API immediately, then refreshes the list in place + the page behind it.
+function subcategoryManager(category, onPageReload) {
+  const catId = category.id;
+  const form = node(`<form>
+    <p class="muted" style="font-size:.85rem;margin-top:0">Subcategories of <strong>${esc(category.label)}</strong>. They drive the storefront sub-nav; a product points at one in its form.</p>
+    <div data-sub-list></div>
+    <div class="form-grid" style="margin-top:.6rem">
+      <label class="full">Add subcategory<span class="bc-field"><input data-new-sub placeholder="e.g. Snacks"/><button type="button" class="btn btn-sm btn-primary" data-add-sub>Add</button></span></label>
+    </div>
+    <p class="error" data-err hidden></p>
+    <div class="modal-actions"><button type="button" class="btn" data-close>Done</button></div>
+  </form>`);
+  const errBox = form.querySelector('[data-err]');
+  const listBox = form.querySelector('[data-sub-list]');
+  const fail = (err) => { errBox.textContent = err.message || String(err); errBox.hidden = false; };
+
+  const currentCat = () => state.categories.find((x) => x.id === catId) || category;
+
+  const renderList = () => {
+    const subs = currentCat().subcategories || [];
+    listBox.innerHTML = subs.length
+      ? subs.map((s) => `<div class="variant-card-head" data-srow data-sid="${s.id}" style="margin-bottom:.4rem">
+          <input data-slabel value="${esc(s.label)}"/>
+          <button type="button" class="btn btn-sm" data-ssave title="Rename">Save</button>
+          <button type="button" class="btn btn-sm btn-danger" data-sdel title="Remove">✕</button>
+        </div>`).join('')
+      : '<p class="muted" style="font-size:.85rem">No subcategories yet.</p>';
+    listBox.querySelectorAll('[data-srow]').forEach((row) => {
+      const sid = row.dataset.sid;
+      row.querySelector('[data-ssave]').onclick = async () => {
+        errBox.hidden = true;
+        const label = row.querySelector('[data-slabel]').value.trim();
+        if (!label) return fail(new Error('Label cannot be empty.'));
+        try { await API.patch(`/subcategories/${sid}`, { label }); toast('Subcategory saved'); await refresh(); }
+        catch (err) { fail(err); }
+      };
+      row.querySelector('[data-sdel]').onclick = async () => {
+        if (!confirm('Remove this subcategory? Products keep working; it just disappears.')) return;
+        errBox.hidden = true;
+        try { await API.del(`/subcategories/${sid}`); toast('Subcategory removed'); await refresh(); }
+        catch (err) { fail(err); }
+      };
+    });
+  };
+
+  const refresh = async () => {
+    await loadCategories(true);
+    renderList();
+    if (onPageReload) onPageReload();
+  };
+
+  form.querySelector('[data-add-sub]').onclick = async () => {
+    errBox.hidden = true;
+    const input = form.querySelector('[data-new-sub]');
+    const label = input.value.trim();
+    if (!label) return fail(new Error('Enter a subcategory name.'));
+    try {
+      await API.post('/subcategories', { categoryId: catId, label });
+      input.value = '';
+      toast('Subcategory added');
+      await refresh();
+    } catch (err) { fail(err); }
+  };
+  form.querySelector('[data-close]').onclick = closeModal;
+
+  renderList();
+  openModal('Subcategories', form);
 }
 
 // =========================================================================

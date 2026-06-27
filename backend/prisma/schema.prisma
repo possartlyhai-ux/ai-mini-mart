@@ -38,6 +38,7 @@ model Product {
   sku       String?  @unique // stable storefront id (auto-assigned: MM-###)
   unit      String? // "Type" — e.g. "Unit", "250 g", "1 pair"
   tagsJson  String   @default("[]") // JSON: ["electronics", ...] (category slugs)
+  sub       String? // subcategory slug; belongs to the primary category (tags[0]). Stale slugs are ignored.
   sortOrder Int      @default(0) // storefront display order; ascending = top of store
   isVisible Boolean  @default(true) // "Show in store" toggle -> storefront feed
   isActive  Boolean  @default(true) // soft delete / retire
@@ -79,6 +80,27 @@ model Category {
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  subcategories Subcategory[]
+}
+
+// A subcategory lives under one Category. Products reference it by `slug` in
+// Product.sub (the sub belongs to the product's primary category = tags[0]).
+// Slugs are global-unique, mirroring the storefront's global `sub_*` i18n keys.
+// Deleting a category cascades its subcategories; a product's now-stale `sub`
+// slug is simply ignored by the storefront sub filter.
+model Subcategory {
+  id         Int      @id @default(autoincrement())
+  categoryId Int
+  slug       String   @unique
+  label      String
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@index([categoryId])
 }
 
 model Bill {

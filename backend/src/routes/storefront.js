@@ -25,8 +25,18 @@ router.get('/products', async (_req, res, next) => {
 // stay in sync with what staff manage in the admin.
 router.get('/categories', async (_req, res, next) => {
   try {
-    const cats = await prisma.category.findMany({ orderBy: [{ sortOrder: 'asc' }, { label: 'asc' }] });
-    res.json({ categories: cats.map((c) => ({ id: c.slug, icon: c.icon || undefined, banner: c.imageUrl || undefined })) });
+    const cats = await prisma.category.findMany({
+      orderBy: [{ sortOrder: 'asc' }, { label: 'asc' }],
+      include: { subcategories: { orderBy: { sortOrder: 'asc' } } },
+    });
+    res.json({
+      categories: cats.map((c) => ({
+        id: c.slug,
+        icon: c.icon || undefined,
+        banner: c.imageUrl || undefined,
+        subs: (c.subcategories || []).map((s) => s.slug),
+      })),
+    });
   } catch (err) {
     next(err);
   }

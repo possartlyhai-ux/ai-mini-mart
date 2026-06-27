@@ -18,41 +18,41 @@ const pic = (seed) => `https://picsum.photos/seed/${seed}/640/640`;
 // storefront's out-of-stock products. `wasTHB` is retained as catalog data but is
 // no longer seeded into the DB (compare-at price was removed from the staff UI).
 const SOURCE = [
-  { name: 'Aurora Wireless Earbuds', tags: ['electronics', 'accessories'], priceTHB: 1290, wasTHB: 1790, unit: '1 pair', variantLabel: 'Color', stock: 40,
+  { name: 'Aurora Wireless Earbuds', tags: ['electronics', 'accessories'], sub: 'audio', priceTHB: 1290, wasTHB: 1790, unit: '1 pair', variantLabel: 'Color', stock: 40,
     variants: [{ label: 'Cloud White', swatch: '#EDEDED', img: pic('mymart-earbuds-white') }, { label: 'Onyx Black', swatch: '#1C1C1C', img: pic('mymart-earbuds-black') }] },
-  { name: 'Terra Ceramic Pour-Over Set', tags: ['home'], priceTHB: 890, unit: '600 ml', variantLabel: 'Color', stock: 25,
+  { name: 'Terra Ceramic Pour-Over Set', tags: ['home'], sub: 'kitchen', priceTHB: 890, unit: '600 ml', variantLabel: 'Color', stock: 25,
     variants: [{ label: 'Clay', swatch: '#C96F4A', img: pic('mymart-pourover-clay') }, { label: 'Sand', swatch: '#DCC9A6', img: pic('mymart-pourover-sand') }] },
-  { name: 'Drift Linen Overshirt', tags: ['apparel'], priceTHB: 1150, wasTHB: 1450, unit: 'Unisex', variantLabel: 'Color', stock: 18,
+  { name: 'Drift Linen Overshirt', tags: ['apparel'], sub: 'tops', priceTHB: 1150, wasTHB: 1450, unit: 'Unisex', variantLabel: 'Color', stock: 18,
     variants: [{ label: 'Olive', swatch: '#6B7253', img: pic('mymart-overshirt-olive') }, { label: 'Ecru', swatch: '#E6DDC7', img: pic('mymart-overshirt-ecru') }] },
-  { name: 'Nimbus 65% Mechanical Keyboard', tags: ['electronics'], priceTHB: 2490, wasTHB: 2990, unit: '68 keys', variantLabel: 'Color', stock: 12,
+  { name: 'Nimbus 65% Mechanical Keyboard', tags: ['electronics'], sub: 'computing', priceTHB: 2490, wasTHB: 2990, unit: '68 keys', variantLabel: 'Color', stock: 12,
     variants: [{ label: 'Slate', swatch: '#3A4A5A', img: pic('mymart-keyboard-slate') }, { label: 'Cream', swatch: '#EDE6D6', img: pic('mymart-keyboard-cream') }] },
-  { name: 'Harvest Cotton Tote', tags: ['accessories', 'apparel'], priceTHB: 390, unit: '14 L', variantLabel: 'Color', stock: 4, // low stock
+  { name: 'Harvest Cotton Tote', tags: ['accessories', 'apparel'], sub: 'bags', priceTHB: 390, unit: '14 L', variantLabel: 'Color', stock: 4, // low stock
     variants: [{ label: 'Natural', swatch: '#E3D8BE', img: pic('mymart-tote-natural') }, { label: 'Forest', swatch: '#2F4A3A', img: pic('mymart-tote-forest') }] },
-  { name: 'Forge 24-piece Driver Kit', tags: ['tools'], priceTHB: 690, wasTHB: 980, unit: '24 pcs', variantLabel: 'Finish', stock: 0, // out of stock
+  { name: 'Forge 24-piece Driver Kit', tags: ['tools'], sub: 'handtools', priceTHB: 690, wasTHB: 980, unit: '24 pcs', variantLabel: 'Finish', stock: 0, // out of stock
     variants: [{ label: 'Graphite', swatch: '#2B2B2B', img: pic('mymart-driver-graphite') }, { label: 'Steel', swatch: '#9AA3A8', img: pic('mymart-driver-steel') }] },
-  { name: 'Lumen Smart Desk Lamp', tags: ['electronics', 'home'], priceTHB: 1090, unit: '5 W', variantLabel: 'Color', stock: 22,
+  { name: 'Lumen Smart Desk Lamp', tags: ['electronics', 'home'], sub: 'lighting', priceTHB: 1090, unit: '5 W', variantLabel: 'Color', stock: 22,
     variants: [{ label: 'White', swatch: '#F4F4F4', img: pic('mymart-lamp-white') }, { label: 'Black', swatch: '#222222', img: pic('mymart-lamp-black') }] },
-  { name: 'Stovetop Espresso Maker', tags: ['home', 'grocery'], priceTHB: 760, wasTHB: 990, unit: '300 ml', variantLabel: 'Size', stock: 16,
+  { name: 'Stovetop Espresso Maker', tags: ['home', 'grocery'], sub: 'kitchen', priceTHB: 760, wasTHB: 990, unit: '300 ml', variantLabel: 'Size', stock: 16,
     variants: [{ label: '3-cup', swatch: '#C8C8C8', img: pic('mymart-moka-3') }, { label: '6-cup', swatch: '#8A8A8A', img: pic('mymart-moka-6') }] },
-  { name: 'Trailhead 20L Daypack', tags: ['accessories'], priceTHB: 1390, unit: '20 L', variantLabel: 'Color', stock: 14,
+  { name: 'Trailhead 20L Daypack', tags: ['accessories'], sub: 'bags', priceTHB: 1390, unit: '20 L', variantLabel: 'Color', stock: 14,
     variants: [{ label: 'Black', swatch: '#232323', img: pic('mymart-daypack-black') }, { label: 'Sand', swatch: '#C9B79A', img: pic('mymart-daypack-sand') }, { label: 'Teal', swatch: '#1F6F6B', img: pic('mymart-daypack-teal') }] },
-  { name: 'Pulse Fitness Smartwatch', tags: ['electronics', 'accessories'], priceTHB: 1990, wasTHB: 2590, unit: '1.4 in', variantLabel: 'Color', stock: 9,
+  { name: 'Pulse Fitness Smartwatch', tags: ['electronics', 'accessories'], sub: 'wearables', priceTHB: 1990, wasTHB: 2590, unit: '1.4 in', variantLabel: 'Color', stock: 9,
     variants: [{ label: 'Midnight', swatch: '#1B2430', img: pic('mymart-watch-midnight') }, { label: 'Rose', swatch: '#D98E8E', img: pic('mymart-watch-rose') }] },
-  { name: 'Garden Stainless Tool Trio', tags: ['tools', 'home'], priceTHB: 540, unit: '3 pcs', variantLabel: 'Handle', stock: 30,
+  { name: 'Garden Stainless Tool Trio', tags: ['tools', 'home'], sub: 'garden', priceTHB: 540, unit: '3 pcs', variantLabel: 'Handle', stock: 30,
     variants: [{ label: 'Wood', swatch: '#9B6B43', img: pic('mymart-garden-wood') }, { label: 'Mint', swatch: '#9FCBB2', img: pic('mymart-garden-mint') }] },
-  { name: 'Everyday Merino Crew Socks (3-pack)', tags: ['apparel'], priceTHB: 320, wasTHB: 420, unit: '3 pairs', variantLabel: 'Size', stock: 3, // low stock
+  { name: 'Everyday Merino Crew Socks (3-pack)', tags: ['apparel'], sub: 'socks', priceTHB: 320, wasTHB: 420, unit: '3 pairs', variantLabel: 'Size', stock: 3, // low stock
     variants: [{ label: 'M', swatch: '#D8D8D8', img: pic('mymart-socks-m') }, { label: 'L', swatch: '#B0B0B0', img: pic('mymart-socks-l') }] },
-  { name: 'Highland Single-Origin Coffee 250g', tags: ['grocery'], priceTHB: 280, unit: '250 g', variantLabel: 'Roast', stock: 60,
+  { name: 'Highland Single-Origin Coffee 250g', tags: ['grocery'], sub: 'coffee', priceTHB: 280, unit: '250 g', variantLabel: 'Roast', stock: 60,
     variants: [{ label: 'Medium', swatch: '#8A5A3B', img: pic('mymart-coffee-medium') }, { label: 'Dark', swatch: '#4A2F22', img: pic('mymart-coffee-dark') }] },
-  { name: 'Cascade Insulated Bottle 750ml', tags: ['accessories', 'home'], priceTHB: 450, wasTHB: 590, unit: '750 ml', variantLabel: 'Color', stock: 28,
+  { name: 'Cascade Insulated Bottle 750ml', tags: ['accessories', 'home'], sub: 'drinkware', priceTHB: 450, wasTHB: 590, unit: '750 ml', variantLabel: 'Color', stock: 28,
     variants: [{ label: 'Glacier', swatch: '#BCD6E0', img: pic('mymart-bottle-glacier') }, { label: 'Coral', swatch: '#E8765A', img: pic('mymart-bottle-coral') }, { label: 'Charcoal', swatch: '#333333', img: pic('mymart-bottle-charcoal') }] },
-  { name: 'Atlas Cordless Drill 18V', tags: ['tools'], priceTHB: 2190, wasTHB: 2690, unit: '18 V', variantLabel: 'Color', stock: 0, // out of stock
+  { name: 'Atlas Cordless Drill 18V', tags: ['tools'], sub: 'powertools', priceTHB: 2190, wasTHB: 2690, unit: '18 V', variantLabel: 'Color', stock: 0, // out of stock
     variants: [{ label: 'Yellow', swatch: '#F2B705', img: pic('mymart-drill-yellow') }, { label: 'Blue', swatch: '#1F5FA8', img: pic('mymart-drill-blue') }] },
-  { name: 'Cloud Linen Bedding Set', tags: ['home', 'apparel'], priceTHB: 1690, unit: 'Queen', variantLabel: 'Color', stock: 11,
+  { name: 'Cloud Linen Bedding Set', tags: ['home', 'apparel'], sub: 'bedding', priceTHB: 1690, unit: 'Queen', variantLabel: 'Color', stock: 11,
     variants: [{ label: 'White', swatch: '#F4F1EA', img: pic('mymart-bedding-white') }, { label: 'Sage', swatch: '#B7C4A8', img: pic('mymart-bedding-sage') }, { label: 'Blush', swatch: '#E7C9C2', img: pic('mymart-bedding-blush') }] },
-  { name: 'Pocket Power Bank 10000mAh', tags: ['electronics'], priceTHB: 590, wasTHB: 790, unit: '10000 mAh', variantLabel: 'Color', stock: 35,
+  { name: 'Pocket Power Bank 10000mAh', tags: ['electronics'], sub: 'power', priceTHB: 590, wasTHB: 790, unit: '10000 mAh', variantLabel: 'Color', stock: 35,
     variants: [{ label: 'White', swatch: '#F0F0F0', img: pic('mymart-power-white') }, { label: 'Black', swatch: '#1E1E1E', img: pic('mymart-power-black') }] },
-  { name: 'Orchard Raw Honey', tags: ['grocery'], priceTHB: 350, unit: '500 g', variantLabel: 'Size', stock: 45,
+  { name: 'Orchard Raw Honey', tags: ['grocery'], sub: 'pantry', priceTHB: 350, unit: '500 g', variantLabel: 'Size', stock: 45,
     variants: [{ label: '500 g', swatch: '#E0A12B', img: pic('mymart-honey-500') }, { label: '1 kg', swatch: '#C98A1E', img: pic('mymart-honey-1000') }] },
 ];
 
@@ -72,11 +72,17 @@ async function seed(client) {
     create: { name: 'Front Desk Staff', username: 'staff', passwordHash: await hashPassword('Staff@123'), role: ROLES.STAFF, active: true },
   });
 
-  // ---- categories (editable; DB is source of truth after this) ----
+  // ---- categories + subcategories (editable; DB is source of truth after this) ----
   for (let i = 0; i < DEFAULT_CATEGORIES.length; i++) {
     const c = DEFAULT_CATEGORIES[i];
     const data = { slug: c.slug, label: c.label, icon: c.icon, sortOrder: i };
-    await prisma.category.upsert({ where: { slug: c.slug }, update: data, create: data });
+    const category = await prisma.category.upsert({ where: { slug: c.slug }, update: data, create: data });
+    const subs = c.subs || [];
+    for (let j = 0; j < subs.length; j++) {
+      const s = subs[j];
+      const subData = { categoryId: category.id, slug: s.slug, label: s.label, sortOrder: j };
+      await prisma.subcategory.upsert({ where: { slug: s.slug }, update: subData, create: subData });
+    }
   }
 
   // ---- products + variants ----
@@ -89,6 +95,7 @@ async function seed(client) {
     const productData = {
       name: s.name,
       unit: s.unit, // "Type"
+      sub: s.sub || null, // subcategory slug (belongs to the primary category)
       sortOrder: i, // storefront order mirrors the catalog order
       isVisible: true,
       isActive: true,

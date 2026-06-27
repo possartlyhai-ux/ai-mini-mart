@@ -43,6 +43,7 @@ function serializeProduct(p) {
     sku: p.sku,
     unit: p.unit, // "Type"
     tags: parseJson(p.tagsJson, []),
+    sub: p.sub || null, // subcategory slug (belongs to primary category)
     sortOrder: p.sortOrder,
     isVisible: p.isVisible,
     isActive: p.isActive,
@@ -67,6 +68,7 @@ function serializeStorefrontProduct(p) {
     id: p.sku || `db-${p.id}`, // stable public id; falls back to db id
     name: p.name,
     tags: parseJson(p.tagsJson, []),
+    sub: p.sub || undefined, // subcategory slug; drives the storefront sub-nav
     unit: p.unit || undefined,
     inStock: variants.some((v) => v.inStock),
     priceTHB: minorToBaht(first.sellPriceMinor || 0),
