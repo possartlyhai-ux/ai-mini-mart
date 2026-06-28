@@ -482,7 +482,7 @@ function drawProducts(products, { reorderable = false, reload = () => go('produc
       <tbody class="prod-group" data-id="${p.id}" ${canDrag ? 'draggable="true"' : ''}>
         <tr class="grp-gap" aria-hidden="true"><td colspan="7"></td></tr>
         <tr class="prod-row">
-          <td class="drag-handle" aria-disabled="${!canDrag}" title="${handleTitle}"><span class="grip">⠿</span></td>
+          <td class="drag-handle" aria-disabled="${!canDrag}" title="${handleTitle}">${canDrag ? `<input type="checkbox" class="sel-box" data-selrow="${p.id}" title="Select to drag several together"/>` : ''}<span class="grip">⠿</span></td>
           <td colspan="4"><div class="item-cell">
             <img class="thumb" src="${esc(p.imageUrl || '')}" onerror="this.style.visibility='hidden'"/>
             <div><strong>${esc(p.name)}</strong><br/><small class="muted">${p.tags.map((t) => `<span class="tag-chip">${esc(t)}</span>`).join('')}</small></div>
@@ -541,31 +541,53 @@ function drawProducts(products, { reorderable = false, reload = () => go('produc
     catch (err) { toast(err.message, 'err'); }
   }));
 
-  if (canDrag) wireReorder(wrap.querySelector('table'));
+  // Multi-select: tick rows, then drag any ticked row to move the whole set.
+  const selected = new Set();
+  if (canDrag) {
+    wrap.querySelectorAll('[data-selrow]').forEach((cb) => {
+      cb.onchange = () => {
+        const id = Number(cb.dataset.selrow);
+        if (cb.checked) selected.add(id); else selected.delete(id);
+        cb.closest('tbody.prod-group').classList.toggle('row-selected', cb.checked);
+      };
+    });
+    wireReorder(wrap.querySelector('table'), selected);
+  }
 }
 
 // HTML5 drag-and-drop reordering of product groups (<tbody>) -> PATCH /products/reorder.
-function wireReorder(table) {
-  let dragEl = null;
+// `selected` (a Set of product ids) lets several ticked groups move as one block:
+// grabbing any ticked group drags the whole set; grabbing an unticked one drags just it.
+function wireReorder(table, selected = new Set()) {
+  let dragEls = [];
   table.querySelectorAll('tbody[draggable]').forEach((tb) => {
-    tb.addEventListener('dragstart', (e) => { dragEl = tb; tb.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; });
+    tb.addEventListener('dragstart', (e) => {
+      const id = Number(tb.dataset.id);
+      dragEls = (selected.has(id) && selected.size > 1)
+        ? [...table.querySelectorAll('tbody.prod-group')].filter((g) => selected.has(Number(g.dataset.id)))
+        : [tb];
+      dragEls.forEach((g) => g.classList.add('dragging'));
+      e.dataTransfer.effectAllowed = 'move';
+    });
     tb.addEventListener('dragend', () => {
-      tb.classList.remove('dragging');
+      dragEls.forEach((g) => g.classList.remove('dragging'));
       table.querySelectorAll('.drag-over').forEach((x) => x.classList.remove('drag-over'));
-      dragEl = null;
+      dragEls = [];
     });
     tb.addEventListener('dragover', (e) => {
       e.preventDefault();
-      if (!dragEl || dragEl === tb) return;
+      if (!dragEls.length || dragEls.includes(tb)) return;
       const rect = tb.getBoundingClientRect();
       const before = e.clientY < rect.top + rect.height / 2;
-      table.insertBefore(dragEl, before ? tb : tb.nextSibling);
+      const anchor = before ? tb : tb.nextSibling;
+      for (const g of dragEls) table.insertBefore(g, anchor); // keep the block contiguous + in order
     });
   });
   table.addEventListener('drop', async (e) => {
     e.preventDefault();
+    const moved = dragEls.length;
     const order = [...table.querySelectorAll('tbody[data-id]')].map((tb) => Number(tb.dataset.id));
-    try { await API.patch('/products/reorder', { order }); toast('Order saved'); }
+    try { await API.patch('/products/reorder', { order }); toast(moved > 1 ? `Order saved — ${moved} items moved` : 'Order saved'); }
     catch (err) { toast(err.message, 'err'); go('products'); }
   });
 }
