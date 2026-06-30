@@ -476,7 +476,7 @@ function drawProducts(products, { reorderable = false, reload = () => go('produc
   wrap.innerHTML = `
     <table class="prod-table"><thead><tr>
       <th class="drag-col"></th><th>Item / Variant</th><th class="num">Price</th>
-      <th>Barcode</th><th>In stock</th><th>In store</th><th></th>
+      <th class="col-barcode">Barcode</th><th>In stock</th><th>In store</th><th></th>
     </tr></thead>
     ${products.map((p) => `
       <tbody class="prod-group" data-id="${p.id}" ${canDrag ? 'draggable="true"' : ''}>
@@ -503,7 +503,7 @@ function drawProducts(products, { reorderable = false, reload = () => go('produc
               <span>${esc(vr.name)}</span>
             </div></td>
             <td class="num">${fmtKhr(vr.sellPriceKhr)}<br/><small class="muted">${fmtMinor(vr.sellPriceMinor, 'THB', 0)}</small></td>
-            <td><small class="muted">${esc(vr.barcode || '—')}</small></td>
+            <td class="col-barcode"><small class="muted">${esc(vr.barcode || '—')}</small></td>
             <td>${canWrite
               ? `<label class="switch"><input type="checkbox" data-vstock="${vr.id}" ${vr.inStock ? 'checked' : ''}/><span class="slider"></span></label>`
               : `<span class="badge ${vr.inStock ? 'in' : 'out'}">${vr.inStock ? 'in' : 'out'}</span>`}</td>

@@ -387,6 +387,34 @@ tr.bill-void td:last-child { opacity: 1; }
   .variant-card-grid { grid-template-columns: 1fr; }
 }
 
+/* ---- phones: make the admin fit a narrow screen (web layout untouched) ---- */
+@media (max-width: 560px) {
+  /* Tighter side gutters so wide content stops overflowing the page. The
+     sticky Products bar bleeds into these gutters — keep its margins in sync. */
+  .view { padding-left: .55rem; padding-right: .55rem; }
+  .prod-stickyhead { margin-left: -.55rem; margin-right: -.55rem;
+    padding-left: .55rem; padding-right: .55rem; }
+
+  /* Products list: shrink type/handles/thumbs, drop the (here always-empty)
+     Barcode column, and let any residual width scroll inside the table box
+     instead of widening the whole page (which also mis-centred the modal). */
+  #p-table { overflow-x: auto; }
+  .prod-table { font-size: .8rem; }
+  .prod-table th, .prod-table td { padding-left: .3rem; padding-right: .3rem; }
+  .prod-table .thumb { width: 26px; height: 26px; }
+  .prod-table .thumb.sm { width: 22px; height: 22px; }
+  .col-barcode { display: none; }
+  th.drag-col, td.drag-handle { width: 30px; }
+  .drag-handle .grip { width: 22px; min-height: 26px; font-size: 1.3rem; }
+  .drag-handle .sel-box { width: 14px; height: 14px; }
+  .row-actions .btn { padding: .3rem .45rem; font-size: .78rem; }
+
+  /* Modal: use nearly the full width and don't overflow the viewport. */
+  .modal-root { padding: .5rem; }
+  .modal { max-height: 94vh; }
+  .modal-body { padding: 1rem; }
+}
+
 /* respect reduced motion */
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
