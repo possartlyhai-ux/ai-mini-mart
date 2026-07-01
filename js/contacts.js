@@ -23,11 +23,6 @@ const CONTACTS = [
     title: 'CONTACT .1',
     // qrImg: optional custom QR image (e.g. your branded LINE/Telegram code).
     // If the file is missing it auto-falls back to a generated QR of the URL.
-    line: { name: 'Ai Laundry',  url: 'https://line.me/ti/p/KHJri67Hl7', qrImg: 'assets/contact1-line.png' },
-    tg:   { name: '@ailaundry1', url: 'https://t.me/ailaundry1',         qrImg: 'assets/contact1-telegram.png' },
-  },
-  {
-    title: 'CONTACT .2',
     line: { name: 'ร้านซักรีด ศุกนิชา', url: 'https://line.me/ti/p/PvMW5jmszW', qrImg: 'assets/contact2-line.png' },
     tg:   { name: '@ailaundry2',         url: 'https://t.me/ailaundry2',        qrImg: 'assets/contact2-telegram.png' },
   },
