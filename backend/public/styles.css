@@ -395,19 +395,51 @@ tr.bill-void td:last-child { opacity: 1; }
   .prod-stickyhead { margin-left: -.55rem; margin-right: -.55rem;
     padding-left: .55rem; padding-right: .55rem; }
 
-  /* Products list: shrink type/handles/thumbs, drop the (here always-empty)
-     Barcode column, and let any residual width scroll inside the table box
-     instead of widening the whole page (which also mis-centred the modal). */
-  #p-table { overflow-x: auto; }
-  .prod-table { font-size: .8rem; }
-  .prod-table th, .prod-table td { padding-left: .3rem; padding-right: .3rem; }
-  .prod-table .thumb { width: 26px; height: 26px; }
-  .prod-table .thumb.sm { width: 22px; height: 22px; }
-  .col-barcode { display: none; }
-  th.drag-col, td.drag-handle { width: 30px; }
-  .drag-handle .grip { width: 22px; min-height: 26px; font-size: 1.3rem; }
-  .drag-handle .sel-box { width: 14px; height: 14px; }
-  .row-actions .btn { padding: .3rem .45rem; font-size: .78rem; }
+  /* Products list -> vertical stacked cards. Each product group is one card;
+     rows become flex so nothing ever scrolls sideways off the screen. */
+  #p-table { overflow-x: hidden; }
+  .prod-table { font-size: .82rem; }
+  .prod-table, .prod-table tbody, .prod-table tr { display: block; width: auto; }
+  .prod-table thead { display: none; }                 /* column labels not needed when stacked */
+  .prod-table tr.grp-gap { height: .5rem; }
+  .prod-table tr.grp-gap td { display: none; }
+  .prod-table .pad-col { display: none; }              /* filler cells from the desktop grid */
+
+  /* one card per product group */
+  .prod-table tbody.prod-group { border: 1px solid var(--line); border-radius: 12px;
+    overflow: hidden; margin-bottom: .5rem; background: var(--surface); }
+  .prod-table tbody.prod-group tr:not(.grp-gap) td { border: none !important; background: var(--surface); }
+
+  /* product header (two tiers so nothing crowds): line 1 = handle · name · eye,
+     line 2 = Edit / Delete on the right. Name shrinks + wraps (never overlaps). */
+  .prod-table tr.prod-row { display: flex; flex-wrap: wrap; align-items: center;
+    column-gap: .4rem; row-gap: .3rem; padding: .5rem .6rem; }
+  .prod-table tr.prod-row td { padding: 0 !important; }
+  .prod-table tr.prod-row td.drag-handle { width: auto; display: flex; align-items: center; gap: .3rem; }
+  .prod-table tr.prod-row td.item-col { flex: 1 1 auto; min-width: 0; }
+  /* clear flex min-width:auto down the chain so the name can actually shrink/wrap */
+  .prod-table .item-cell, .prod-table .item-cell > div { min-width: 0; }
+  .prod-table tr.prod-row td.item-col strong { display: -webkit-box; -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical; overflow: hidden; font-size: .88rem; line-height: 1.2; }
+  .prod-table tr.prod-row td.instore-col { margin-left: auto; }
+  .prod-table tr.prod-row td.actions-col { flex: 1 0 100%; }   /* Edit/Delete drop to their own line */
+
+  /* variant: thumb+name (grows) | price | stock toggle, all on one line, no overflow */
+  .prod-table tr.var-row { display: flex; align-items: center; gap: .5rem;
+    padding: .35rem .6rem; border-top: 1px solid var(--line-soft) !important; }
+  .prod-table tr.var-row td { padding: 0 !important; }
+  .prod-table tr.var-row td.item-col { flex: 1 1 auto; min-width: 0; }
+  .prod-table tr.var-row td.item-col .var-name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .prod-table tr.var-row td.num { flex: none; text-align: right; white-space: nowrap; font-size: .78rem; }
+  .prod-table tr.var-row td.stock-col { flex: none; }
+
+  /* smaller thumbs/handle so a card row stays compact */
+  .prod-table .thumb { width: 30px; height: 30px; }
+  .prod-table .thumb.sm { width: 24px; height: 24px; }
+  .drag-handle .grip { width: 20px; min-height: 24px; font-size: 1.25rem; }
+  .drag-handle .sel-box { width: 15px; height: 15px; margin: 0; }
+  .row-actions { gap: .35rem; }
+  .row-actions .btn { padding: .3rem .5rem; font-size: .8rem; }
 
   /* Modal: use nearly the full width and don't overflow the viewport. */
   .modal-root { padding: .5rem; }

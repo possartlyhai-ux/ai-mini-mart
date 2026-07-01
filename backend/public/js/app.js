@@ -476,38 +476,37 @@ function drawProducts(products, { reorderable = false, reload = () => go('produc
   wrap.innerHTML = `
     <table class="prod-table"><thead><tr>
       <th class="drag-col"></th><th>Item / Variant</th><th class="num">Price</th>
-      <th class="col-barcode">Barcode</th><th>In stock</th><th>In store</th><th></th>
+      <th>In stock</th><th>In store</th><th></th>
     </tr></thead>
     ${products.map((p) => `
       <tbody class="prod-group" data-id="${p.id}" ${canDrag ? 'draggable="true"' : ''}>
-        <tr class="grp-gap" aria-hidden="true"><td colspan="7"></td></tr>
+        <tr class="grp-gap" aria-hidden="true"><td colspan="6"></td></tr>
         <tr class="prod-row">
           <td class="drag-handle" aria-disabled="${!canDrag}" title="${handleTitle}">${canDrag ? `<input type="checkbox" class="sel-box" data-selrow="${p.id}" title="Select to drag several together"/>` : ''}<span class="grip">⠿</span></td>
-          <td colspan="4"><div class="item-cell">
+          <td colspan="3" class="item-col"><div class="item-cell">
             <img class="thumb" src="${esc(p.imageUrl || '')}" onerror="this.style.visibility='hidden'"/>
             <div><strong>${esc(p.name)}</strong><br/><small class="muted">${p.tags.map((t) => `<span class="tag-chip">${esc(t)}</span>`).join('')}</small></div>
           </div></td>
-          <td>${can('storefront:toggle')
+          <td class="instore-col">${can('storefront:toggle')
             ? eyeToggle(p.id, p.isVisible)
             : `<span class="eye-btn ${p.isVisible ? 'on' : 'off'}" aria-disabled="true">${eyeSvg(p.isVisible)}</span>`}</td>
-          <td><div class="row-actions">
+          <td class="actions-col"><div class="row-actions">
             ${canWrite ? `<button class="btn btn-sm" data-edit="${p.id}">Edit</button>` : ''}
             ${can('products:delete') ? `<button class="btn btn-sm btn-danger" data-del="${p.id}">Delete</button>` : ''}
           </div></td>
         </tr>
         ${(p.variants || []).map((vr) => `
           <tr class="var-row">
-            <td></td>
-            <td><div class="item-cell var-name">
+            <td class="pad-col"></td>
+            <td class="item-col"><div class="item-cell var-name">
               <img class="thumb sm" src="${esc(vr.imageUrl || '')}" onerror="this.style.visibility='hidden'"/>
               <span>${esc(vr.name)}</span>
             </div></td>
             <td class="num">${fmtKhr(vr.sellPriceKhr)}<br/><small class="muted">${fmtMinor(vr.sellPriceMinor, 'THB', 0)}</small></td>
-            <td class="col-barcode"><small class="muted">${esc(vr.barcode || '—')}</small></td>
-            <td>${canWrite
+            <td class="stock-col">${canWrite
               ? `<label class="switch"><input type="checkbox" data-vstock="${vr.id}" ${vr.inStock ? 'checked' : ''}/><span class="slider"></span></label>`
               : `<span class="badge ${vr.inStock ? 'in' : 'out'}">${vr.inStock ? 'in' : 'out'}</span>`}</td>
-            <td></td><td></td>
+            <td class="pad-col"></td><td class="pad-col"></td>
           </tr>`).join('')}
       </tbody>`).join('')}
     </table>`;
